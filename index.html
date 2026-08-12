@@ -1,0 +1,981 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Pregobol · Futebol de Prego</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  :root{
+    --madeira:#8A5A32;
+    --madeira-esc:#5E3A1E;
+    --verniz:#C68B4E;
+    --carne:#F2E4CE;
+    --linha:#F7F2E8;
+    --metal:#D8DEE6;
+    --azul:#2F6BD8;
+    --vermelho:#D8382F;
+    --preto:#14100C;
+  }
+  html,body{height:100%;background:#14100C;overscroll-behavior:none;}
+  body{
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    color:var(--carne);display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:10px;padding:10px;touch-action:none;
+    background:radial-gradient(900px 600px at 50% 0%,#241a12,#0F0B08 70%);
+  }
+
+  /* ---------- placar ---------- */
+  .placar{
+    width:100%;max-width:430px;display:flex;align-items:stretch;gap:8px;
+    background:linear-gradient(180deg,#241A12,#180F0A);
+    border:1px solid #3B2A1C;border-radius:12px;padding:9px 11px;
+  }
+  .time{flex:1;display:flex;align-items:center;gap:9px;padding:4px 7px;border-radius:8px;
+        transition:background .2s,box-shadow .2s;}
+  .time.ativo{background:rgba(255,255,255,.07);box-shadow:inset 0 0 0 1px rgba(255,255,255,.13);}
+  .time .cor{width:15px;height:15px;border-radius:50%;flex:none;box-shadow:0 0 0 2px rgba(0,0,0,.45);}
+  
+  .time .nome{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:#B49B7E;line-height:1.2;}
+  .time .gols{font-size:27px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;}
+  .time.b{flex-direction:row-reverse;text-align:right;}
+
+  .toques{display:flex;flex-direction:column;align-items:center;justify-content:center;
+          gap:5px;padding:0 6px;min-width:78px;}
+  .toques .rot{font-size:9px;letter-spacing:.16em;color:#8C755C;text-transform:uppercase;}
+  .bolinhas{display:flex;gap:5px;}
+  .bolinhas i{width:12px;height:12px;border-radius:50%;background:#3B2A1C;
+              box-shadow:inset 0 0 0 1px #4E3826;transition:.18s;}
+  .bolinhas i.on{background:var(--metal);box-shadow:0 0 9px rgba(216,222,230,.55);}
+  .bolinhas i.chute{background:#FFD24A;box-shadow:0 0 12px rgba(255,210,74,.75);}
+
+  /* ---------- tabuleiro ---------- */
+  .board-wrap{position:relative;}
+  canvas{display:block;border-radius:10px;box-shadow:0 18px 40px rgba(0,0,0,.65),0 2px 0 #A9906F;}
+
+  .aviso{
+    position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);
+    background:rgba(12,9,6,.93);border:1px solid #5E3A1E;border-radius:12px;
+    padding:16px 22px;text-align:center;pointer-events:none;opacity:0;
+    transition:opacity .18s,transform .18s;max-width:82%;
+  }
+  .aviso.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  .aviso b{display:block;font-size:26px;letter-spacing:.02em;margin-bottom:3px;}
+  .aviso span{font-size:13px;color:#B49B7E;line-height:1.35;}
+
+  /* ---------- rodapé ---------- */
+  /* ---------- abertura: tela inicial e vinhetas ---------- */
+  .abertura{
+    position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;
+    align-items:center;justify-content:flex-end;background:#05060A;
+  }
+  /* a arte é 16:9: fundo desfocado preenche a tela e a arte inteira fica por cima */
+  .abertura .fundo,.abertura .arte{position:absolute;inset:0;}
+  .abertura .fundo{background:center/cover no-repeat;filter:blur(26px) brightness(.45);transform:scale(1.1);}
+  .abertura .arte{background:center 36%/contain no-repeat;}
+  /* em tela de celular a arte 16:9 sobraria muito espaço: amplia sem cortar o título */
+  @media (max-aspect-ratio: 3/4){
+    .abertura .arte{background-size:158% auto;background-position:center 32%;}
+  }
+  .abertura::after{                     /* escurece a base pro botao ler bem */
+    content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
+    background:linear-gradient(180deg,rgba(5,6,10,0) 52%,rgba(5,6,10,.72) 78%,rgba(5,6,10,.94) 100%);
+  }
+  .abertura.oculta{display:none;}
+  .abertura .painel{position:relative;z-index:2;text-align:center;padding:0 20px 6vh;}
+  .btnIniciar{
+    font-family:inherit;font-size:26px;font-weight:800;letter-spacing:.14em;
+    text-transform:uppercase;color:#10161F;cursor:pointer;
+    padding:17px 58px;border:none;border-radius:14px;
+    background:linear-gradient(180deg,#8CF06A,#3FBE2A);
+    box-shadow:0 6px 0 #227A14, 0 14px 34px rgba(96,220,90,.45);
+    animation:pulsa 1.7s ease-in-out infinite;
+  }
+  .btnIniciar:active{transform:translateY(4px);box-shadow:0 2px 0 #227A14;}
+  @keyframes pulsa{0%,100%{transform:scale(1);}50%{transform:scale(1.045);}}
+  .abertura .nota{display:table;margin:13px auto 0;font-size:12.5px;color:#D5DFEC;
+                  background:rgba(5,7,12,.72);padding:6px 14px;border-radius:20px;}
+  .abertura .carregando{margin-top:15px;font-size:13px;color:#9CE08A;display:none;}
+  .abertura.aguardando .btnIniciar{opacity:.45;pointer-events:none;animation:none;}
+  .abertura.aguardando .carregando{display:block;}
+
+  .cine{position:fixed;inset:0;z-index:70;background:#000;display:none;}
+  .cine.on{display:block;}
+  .cine video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;}
+  .cine video.esconde{opacity:0;pointer-events:none;}
+  .btnPular{
+    position:absolute;right:16px;bottom:16px;z-index:3;
+    font-family:inherit;font-size:12.5px;font-weight:700;letter-spacing:.12em;
+    text-transform:uppercase;color:#EAF0F7;cursor:pointer;
+    background:rgba(12,16,22,.62);border:1px solid rgba(255,255,255,.28);
+    border-radius:9px;padding:10px 17px;backdrop-filter:blur(4px);
+  }
+
+  /* ---------- tela de escolha dos times ---------- */
+  .tela{
+    position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;padding:18px;
+    background:radial-gradient(700px 500px at 50% 22%,#2A1D13,#0B0806 72%);
+  }
+  .tela.oculta{display:none;}
+  .tela h1{font-size:31px;letter-spacing:.02em;font-weight:800;}
+  .tela h1 small{display:block;font-size:11px;letter-spacing:.28em;font-weight:600;
+                 color:#9C8468;text-transform:uppercase;margin-top:5px;}
+  .tela .sub{font-size:13.5px;color:#C6AE8E;text-align:center;}
+  .tela .sub b{color:var(--carne);}
+  .grade{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;width:100%;max-width:400px;}
+  .cardTime{
+    display:flex;align-items:center;gap:10px;padding:9px 11px;cursor:pointer;
+    background:#241A12;border:1px solid #402D1D;border-radius:11px;text-align:left;
+  }
+  .cardTime:active{transform:translateY(1px);}
+  .cardTime[disabled]{opacity:.3;cursor:not-allowed;}
+  .cardTime .camisa{width:26px;height:26px;border-radius:6px;flex:none;
+                    box-shadow:inset 0 0 0 1px rgba(0,0,0,.5),0 1px 3px rgba(0,0,0,.5);}
+  .cardTime .txt{font-size:13px;font-weight:700;line-height:1.15;}
+  .cardTime .txt em{display:block;font-style:normal;font-size:9.5px;font-weight:600;
+                    letter-spacing:.12em;color:#9C8468;text-transform:uppercase;margin-top:2px;}
+  .confronto{display:flex;align-items:center;gap:10px;font-size:13px;color:#C6AE8E;min-height:22px;}
+  .confronto .camisa{width:17px;height:17px;border-radius:5px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.5);}
+  .voltar{background:none;border:none;color:#9C8468;font-size:12px;text-decoration:underline;padding:4px;}
+
+  .barra{width:100%;max-width:430px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  button{
+    font:inherit;font-size:12.5px;font-weight:600;color:var(--carne);cursor:pointer;
+    background:#2B1E14;border:1px solid #4A3423;border-radius:9px;padding:9px 13px;
+  }
+  button:active{transform:translateY(1px);}
+  button.on{background:#4A3423;border-color:#7A583A;}
+  .dica{flex:1;min-width:150px;font-size:11.5px;color:#9C8468;line-height:1.35;text-align:right;}
+</style>
+</head>
+<body>
+
+<div class="placar">
+  <div class="time a ativo" id="timeA">
+    <div class="cor" id="corA"></div>
+    <div><div class="nome" id="nomeA">Jogador 1</div><div class="gols" id="golsA">0</div></div>
+  </div>
+
+  <div class="toques">
+    <div class="rot">Toques</div>
+    <div class="bolinhas" id="bolinhas"><i></i><i></i><i></i></div>
+  </div>
+
+  <div class="time b" id="timeB">
+    <div class="cor" id="corB"></div>
+    <div><div class="nome" id="nomeB">Jogador 2</div><div class="gols" id="golsB">0</div></div>
+  </div>
+</div>
+
+<div class="board-wrap">
+  <canvas id="cv"></canvas>
+  <div class="aviso" id="aviso"><b></b><span></span></div>
+</div>
+
+<div class="abertura" id="abertura">
+  <div class="fundo"></div>
+  <div class="arte"></div>
+  <div class="painel">
+    <button class="btnIniciar" id="btnIniciar">▶ Iniciar</button>
+    <div class="nota">Toque para começar — com som e em tela cheia</div>
+    <div class="carregando" id="carregando">carregando abertura…</div>
+  </div>
+</div>
+
+<div class="cine" id="cine">
+  <video id="vinheta"  playsinline preload="auto" src="assets/produtora.mp4"></video>
+  <video id="intro"    playsinline preload="auto" src="assets/pregobol_intro.mp4" class="esconde"></video>
+  <button class="btnPular" id="btnPular">Pular ⏭</button>
+</div>
+
+<div class="tela oculta" id="telaTimes">
+  <h1>Pregobol<small>Futebol de prego</small></h1>
+  <p class="sub" id="subTela">Escolha o time do <b>Jogador 1</b></p>
+  <div class="grade" id="gradeTimes"></div>
+  <div class="confronto" id="confronto"></div>
+  <button class="voltar" id="btnRefazer">recomeçar a escolha</button>
+</div>
+
+<div class="barra">
+  <button id="btnRegra" class="on" title="Regra clássica do pregobol">⚽ Gol só no 3º toque</button>
+  <button id="btnSom" class="on">🔊 Som</button>
+  <button id="btnNovo">↺ Nova partida</button>
+  <button id="btnTimes">👕 Trocar times</button>
+  <div class="dica">Puxe a partir da moeda e solte, como um peteleco. Vence quem fizer 3 gols.</div>
+</div>
+
+<script>
+/* =======================================================================
+   PREGOBOL — futebol de prego
+   Moeda + petelecos. 3 toques por vez, o 3º é o chute a gol.
+   ======================================================================= */
+
+/* ---------------------- dimensões do tabuleiro ---------------------- */
+const W = 420, H = 660;          // área lógica (o canvas escala pra tela)
+const BORDA = 16;                // ripa de madeira
+const CX = W / 2;
+const CAMPO = { x: BORDA, y: BORDA, w: W - BORDA * 2, h: H - BORDA * 2 };
+const GOL_MEIA = 62;             // meia largura da boca do gol
+const R_BOLA = 8.5;
+const R_PREGO = 5;
+const ATRITO = 0.968;
+const PARADO = 0.10;
+const RESTITUICAO = 0.74;
+const FORCA_MAX = 15.5;
+const ALVO_GOLS = 3;
+
+/* ---------------------- clubes ----------------------
+   Cores e padrões das camisas. Sem escudos: os emblemas são marcas
+   registradas dos clubes, então as cabeças dos pregos são pintadas
+   só com as cores, como se faz num pregobol de verdade.              */
+const CLUBES = {
+  flamengo:    { nome: 'Flamengo',    c1: '#E30613', c2: '#111111', padrao: 'faixas'    },
+  botafogo:    { nome: 'Botafogo',    c1: '#111111', c2: '#F2F2F2', padrao: 'listras'   },
+  vasco:       { nome: 'Vasco',       c1: '#F2F2F2', c2: '#111111', padrao: 'diagonal'  },
+  fluminense:  { nome: 'Fluminense',  c1: '#8E1F35', c2: '#0A6B3D', c3: '#F2F2F2', padrao: 'listras3' },
+  palmeiras:   { nome: 'Palmeiras',   c1: '#046B37', c2: '#F2F2F2', padrao: 'solido'    },
+  corinthians: { nome: 'Corinthians', c1: '#F2F2F2', c2: '#111111', padrao: 'gola'      },
+  santos:      { nome: 'Santos',      c1: '#F2F2F2', c2: '#111111', padrao: 'solido'    },
+  saopaulo:    { nome: 'São Paulo',   c1: '#F2F2F2', c2: '#E30613', c3: '#111111', padrao: 'faixas3' }
+};
+const ORDEM_CLUBES = ['flamengo','botafogo','vasco','fluminense','palmeiras','corinthians','santos','saopaulo'];
+
+let times = { 1: 'flamengo', 2: 'botafogo' };
+const clube = n => CLUBES[times[n]];
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+function ajustarEscala() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  const dispW = Math.min(430, window.innerWidth - 20);
+  const escalaCSS = dispW / W;
+  const placarH = document.querySelector('.placar')?.offsetHeight || 62;
+  const barraH = document.querySelector('.barra')?.offsetHeight || 78;
+  const alturaLivre = window.innerHeight - placarH - barraH - 42;
+  const escala = Math.min(escalaCSS, alturaLivre / H);
+  cv.style.width = (W * escala) + 'px';
+  cv.style.height = (H * escala) + 'px';
+  cv.width = Math.round(W * escala * dpr);
+  cv.height = Math.round(H * escala * dpr);
+  ctx.setTransform(escala * dpr, 0, 0, escala * dpr, 0, 0);
+}
+window.addEventListener('resize', ajustarEscala);
+
+/* ---------------------- som (Web Audio, sem arquivos) ---------------------- */
+const Som = (() => {
+  let ac = null, ligado = true;
+  const ligar = () => { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); 
+                        if (ac.state === 'suspended') ac.resume(); return ac; };
+
+  function ruido(dur) {                        // buffer de ruído branco reaproveitável
+    const ctxA = ligar();
+    const n = Math.floor(ctxA.sampleRate * dur);
+    const buf = ctxA.createBuffer(1, n, ctxA.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctxA.createBufferSource(); src.buffer = buf; return src;
+  }
+
+  // peteleco: estalo curto e seco (ruído filtrado + corpo grave)
+  function peteleco(forca) {
+    if (!ligado) return; const a = ligar(), t = a.currentTime;
+    const src = ruido(0.09), bp = a.createBiquadFilter(), g = a.createGain();
+    bp.type = 'bandpass'; bp.frequency.value = 1500 + forca * 90; bp.Q.value = 1.1;
+    g.gain.setValueAtTime(0.28 * (0.5 + forca / 30), t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.085);
+    src.connect(bp); bp.connect(g); g.connect(a.destination); src.start(t); src.stop(t + 0.09);
+
+    const o = a.createOscillator(), og = a.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(320, t);
+    o.frequency.exponentialRampToValueAtTime(90, t + 0.09);
+    og.gain.setValueAtTime(0.22, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    o.connect(og); og.connect(a.destination); o.start(t); o.stop(t + 0.11);
+  }
+
+  // prego: ping metálico — parciais inarmônicos, é isso que soa "metal"
+  function prego(vel) {
+    if (!ligado) return; const a = ligar(), t = a.currentTime;
+    const vol = Math.min(0.30, 0.05 + vel * 0.028);
+    const base = 1750 + Math.random() * 900;
+    [1, 2.41, 3.83, 5.17].forEach((mult, i) => {          // razões não inteiras = timbre de metal
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = 'sine'; o.frequency.value = base * mult;
+      const dur = 0.30 - i * 0.05;
+      g.gain.setValueAtTime(vol / (i + 1.5), t);
+      g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+      o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + dur);
+    });
+  }
+
+  // ripa de madeira: baque abafado
+  function madeira(vel) {
+    if (!ligado) return; const a = ligar(), t = a.currentTime;
+    const o = a.createOscillator(), g = a.createGain(), lp = a.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 700;
+    o.type = 'triangle'; o.frequency.setValueAtTime(180 + Math.random() * 50, t);
+    o.frequency.exponentialRampToValueAtTime(70, t + 0.12);
+    g.gain.setValueAtTime(Math.min(0.26, 0.05 + vel * 0.022), t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+    o.connect(lp); lp.connect(g); g.connect(a.destination); o.start(t); o.stop(t + 0.15);
+  }
+
+  // gol: acorde subindo + torcida (ruído filtrado que abre e fecha)
+  function gol() {
+    if (!ligado) return; const a = ligar(), t = a.currentTime;
+    [523, 659, 784, 1047].forEach((f, i) => {
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = 'square'; o.frequency.value = f;
+      const ini = t + i * 0.075;
+      g.gain.setValueAtTime(0, ini);
+      g.gain.linearRampToValueAtTime(0.13, ini + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, ini + 0.42);
+      o.connect(g); g.connect(a.destination); o.start(ini); o.stop(ini + 0.45);
+    });
+    const src = ruido(1.5), bp = a.createBiquadFilter(), g = a.createGain();
+    bp.type = 'bandpass'; bp.frequency.setValueAtTime(700, t);
+    bp.frequency.linearRampToValueAtTime(1500, t + 0.5); bp.Q.value = 0.7;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.16, t + 0.25);
+    g.gain.linearRampToValueAtTime(0, t + 1.4);
+    src.connect(bp); bp.connect(g); g.connect(a.destination); src.start(t); src.stop(t + 1.5);
+  }
+
+  function apito(longo) {
+    if (!ligado) return; const a = ligar(), t = a.currentTime;
+    const dur = longo ? 0.85 : 0.3;
+    const o = a.createOscillator(), o2 = a.createOscillator(), g = a.createGain();
+    o.type = 'sine'; o2.type = 'sine';
+    o.frequency.value = 2350; o2.frequency.value = 2680;   // dois tons batendo = apito
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.12, t + 0.03);
+    g.gain.setValueAtTime(0.12, t + dur - 0.06);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); o2.connect(g); g.connect(a.destination);
+    o.start(t); o2.start(t); o.stop(t + dur); o2.stop(t + dur);
+  }
+
+  return { peteleco, prego, madeira, gol, apito, ligar,
+           alternar: () => (ligado = !ligado), get ligado() { return ligado; } };
+})();
+
+/* ---------------------- estado ---------------------- */
+const bola = { x: CX, y: H / 2, vx: 0, vy: 0 };
+let pregos = [];
+let jogador = 1;            // 1 = vermelho (ataca pra cima) | 2 = azul (ataca pra baixo)
+let toquesUsados = 0;
+let placar = { 1: 0, 2: 0 };
+let fase = 'mirando';       // mirando | rolando | pausa | fim
+let golSoNoTerceiro = true;
+let mira = null;            // {x,y} enquanto arrasta
+let tremor = 0;             // shake da tela no gol
+let brilhoGol = 0;
+let inicioDaJogada = 0;
+
+/* Time: 1 goleiro, 4 defesa, 3 meio, 3 ataque — espelhado nos dois campos. */
+function montarPregos() {
+  pregos = [];
+  const linhas = [
+    { y: 0.085, xs: [0.5] },                          // goleiro
+    { y: 0.185, xs: [0.17, 0.36, 0.64, 0.83] },       // defesa
+    { y: 0.305, xs: [0.28, 0.5, 0.72] },              // meio
+    { y: 0.415, xs: [0.22, 0.44, 0.70] }              // ataque (deixa a faixa central livre)
+  ];
+  for (const l of linhas) {
+    for (const fx of l.xs) {
+      const x = CAMPO.x + fx * CAMPO.w;
+      pregos.push({ x, y: CAMPO.y + l.y * CAMPO.h, time: 2, tremor: 0 });          // campo de cima
+      pregos.push({ x, y: CAMPO.y + (1 - l.y) * CAMPO.h, time: 1, tremor: 0 });    // campo de baixo
+    }
+  }
+}
+
+function novaPartida() {
+  placar = { 1: 0, 2: 0 };
+  jogador = 1; toquesUsados = 0; fase = 'mirando';
+  bola.x = CX; bola.y = H / 2; bola.vx = 0; bola.vy = 0;
+  montarPregos(); atualizarHUD(); esconderAviso();
+}
+
+function recomecarDoMeio(quemComeca) {
+  bola.x = CX; bola.y = H / 2; bola.vx = 0; bola.vy = 0;
+  jogador = quemComeca; toquesUsados = 0; fase = 'mirando';
+  atualizarHUD();
+}
+
+/* ---------------------- HUD ---------------------- */
+const elGolsA = document.getElementById('golsA');
+const elGolsB = document.getElementById('golsB');
+const elTimeA = document.getElementById('timeA');
+const elTimeB = document.getElementById('timeB');
+const elBolinhas = document.getElementById('bolinhas');
+const elAviso = document.getElementById('aviso');
+
+/* Miniatura da camisa em CSS, usada no placar e na tela de escolha. */
+function fundoCamisa(cl) {
+  switch (cl.padrao) {
+    case 'listras':  return `repeating-linear-gradient(90deg,${cl.c1} 0 25%,${cl.c2} 25% 50%)`;
+    case 'listras3': return `linear-gradient(90deg,${cl.c1} 0 33.3%,${cl.c3} 33.3% 66.6%,${cl.c2} 66.6%)`;
+    case 'faixas':   return `repeating-linear-gradient(180deg,${cl.c1} 0 25%,${cl.c2} 25% 50%)`;
+    case 'faixas3':  return `linear-gradient(180deg,${cl.c1} 0 33.3%,${cl.c2} 33.3% 66.6%,${cl.c3} 66.6%)`;
+    case 'diagonal': return `linear-gradient(135deg,${cl.c1} 0 32%,${cl.c2} 32% 62%,${cl.c1} 62%)`;
+    case 'gola':     return `linear-gradient(180deg,${cl.c2} 0 26%,${cl.c1} 26%)`;
+    default:         return cl.c1;
+  }
+}
+
+function atualizarHUD() {
+  const cA = clube(1), cB = clube(2);
+  document.getElementById('nomeA').textContent = cA.nome;
+  document.getElementById('nomeB').textContent = cB.nome;
+  document.getElementById('corA').style.background = fundoCamisa(cA);
+  document.getElementById('corB').style.background = fundoCamisa(cB);
+  elGolsA.textContent = placar[1];
+  elGolsB.textContent = placar[2];
+  elTimeA.classList.toggle('ativo', jogador === 1 && fase !== 'fim');
+  elTimeB.classList.toggle('ativo', jogador === 2 && fase !== 'fim');
+  [...elBolinhas.children].forEach((b, i) => {
+    const restante = i >= toquesUsados;
+    b.className = restante ? (i === 2 && golSoNoTerceiro ? 'chute' : 'on') : '';
+  });
+}
+
+let timerAviso = null;
+function mostrarAviso(titulo, texto, ms = 1500) {
+  elAviso.querySelector('b').textContent = titulo;
+  elAviso.querySelector('span').textContent = texto;
+  elAviso.classList.add('show');
+  clearTimeout(timerAviso);
+  if (ms) timerAviso = setTimeout(esconderAviso, ms);
+}
+function esconderAviso() { elAviso.classList.remove('show'); }
+
+/* ---------------------- entrada (peteleco) ---------------------- */
+function posNoCanvas(ev) {
+  const r = cv.getBoundingClientRect();
+  return { x: (ev.clientX - r.left) / r.width * W, y: (ev.clientY - r.top) / r.height * H };
+}
+
+cv.addEventListener('pointerdown', ev => {
+  Som.ligar();
+  if (fase !== 'mirando') return;
+  const p = posNoCanvas(ev);
+  if (Math.hypot(p.x - bola.x, p.y - bola.y) > 62) return;   // precisa pegar perto da moeda
+  mira = p; cv.setPointerCapture(ev.pointerId);
+});
+
+cv.addEventListener('pointermove', ev => { if (mira) mira = posNoCanvas(ev); });
+
+cv.addEventListener('pointerup', () => {
+  if (!mira || fase !== 'mirando') { mira = null; return; }
+  const dx = bola.x - mira.x, dy = bola.y - mira.y;
+  const dist = Math.hypot(dx, dy);
+  mira = null;
+  if (dist < 9) return;                                       // toque sem puxada: ignora
+  const forca = Math.min(dist / 9, FORCA_MAX);
+  bola.vx = (dx / dist) * forca;
+  bola.vy = (dy / dist) * forca;
+  toquesUsados++;
+  fase = 'rolando';
+  inicioDaJogada = performance.now();
+  Som.peteleco(forca);
+  atualizarHUD();
+});
+
+/* ---------------------- física ---------------------- */
+function passo() {
+  if (fase !== 'rolando') return;
+
+  const sub = 3;                                   // sub-passos: evita atravessar prego
+  for (let s = 0; s < sub; s++) {
+    bola.x += bola.vx / sub;
+    bola.y += bola.vy / sub;
+    colidirPregos();
+    if (colidirBordas()) return;                   // retornou true = gol, encerra o passo
+  }
+
+  bola.vx *= ATRITO; bola.vy *= ATRITO;
+
+  const lenta = Math.hypot(bola.vx, bola.vy) < PARADO;
+  const demorou = inicioDaJogada && performance.now() - inicioDaJogada > 7000;
+  if (lenta || demorou) {
+    bola.vx = 0; bola.vy = 0;
+    fimDoToque();
+  }
+}
+
+function colidirPregos() {
+  for (const pr of pregos) {
+    const dx = bola.x - pr.x, dy = bola.y - pr.y;
+    const dist = Math.hypot(dx, dy);
+    const min = R_BOLA + R_PREGO;
+    if (dist < min && dist > 0.0001) {
+      const nx = dx / dist, ny = dy / dist;
+      bola.x = pr.x + nx * min;                    // tira a sobreposição
+      bola.y = pr.y + ny * min;
+      const proj = bola.vx * nx + bola.vy * ny;
+      const vel = Math.hypot(bola.vx, bola.vy);
+      bola.vx = (bola.vx - 2 * proj * nx) * RESTITUICAO;
+      bola.vy = (bola.vy - 2 * proj * ny) * RESTITUICAO;
+      pr.tremor = 1;
+      if (vel > 0.7) Som.prego(vel);
+    }
+  }
+}
+
+/* Devolve true se a jogada terminou em gol. */
+function colidirBordas() {
+  const naBocaDoGol = Math.abs(bola.x - CX) < GOL_MEIA - R_BOLA * 0.35;
+  const vel = Math.hypot(bola.vx, bola.vy);
+
+  // topo — gol do jogador 1
+  if (bola.y - R_BOLA < CAMPO.y) {
+    if (naBocaDoGol) {
+      if (bola.y < CAMPO.y - 1) { registrarGol(1); return true; }
+    } else {
+      bola.y = CAMPO.y + R_BOLA; bola.vy = -bola.vy * RESTITUICAO; Som.madeira(vel);
+    }
+  }
+  // fundo — gol do jogador 2
+  if (bola.y + R_BOLA > CAMPO.y + CAMPO.h) {
+    if (naBocaDoGol) {
+      if (bola.y > CAMPO.y + CAMPO.h + 1) { registrarGol(2); return true; }
+    } else {
+      bola.y = CAMPO.y + CAMPO.h - R_BOLA; bola.vy = -bola.vy * RESTITUICAO; Som.madeira(vel);
+    }
+  }
+  // laterais
+  if (bola.x - R_BOLA < CAMPO.x) {
+    bola.x = CAMPO.x + R_BOLA; bola.vx = -bola.vx * RESTITUICAO; Som.madeira(vel);
+  }
+  if (bola.x + R_BOLA > CAMPO.x + CAMPO.w) {
+    bola.x = CAMPO.x + CAMPO.w - R_BOLA; bola.vx = -bola.vx * RESTITUICAO; Som.madeira(vel);
+  }
+  return false;
+}
+
+/* ---------------------- regras ---------------------- */
+function registrarGol(dono) {
+  bola.vx = 0; bola.vy = 0;
+
+  // regra clássica: só o 3º toque vale gol
+  if (golSoNoTerceiro && toquesUsados < 3) {
+    fase = 'pausa';
+    Som.apito(false);
+    mostrarAviso('Anulado', 'O gol só vale no 3º toque. A bola volta ao meio.', 1700);
+    setTimeout(() => { recomecarDoMeio(jogador === 1 ? 2 : 1); esconderAviso(); }, 1700);
+    return;
+  }
+
+  placar[dono]++;
+  tremor = 12; brilhoGol = 1;
+  fase = 'pausa';
+  Som.gol();
+  atualizarHUD();
+
+  if (placar[dono] >= ALVO_GOLS) {
+    fase = 'fim';
+    setTimeout(() => Som.apito(true), 900);
+    mostrarAviso(`${clube(dono).nome} venceu!`,
+                 `${clube(1).nome} ${placar[1]} × ${placar[2]} ${clube(2).nome} · toque em "Nova partida" pra revanche`, 0);
+    atualizarHUD();
+    return;
+  }
+
+  mostrarAviso('Gol!', `Ponto do ${clube(dono).nome}`, 1500);
+  setTimeout(() => recomecarDoMeio(dono === 1 ? 2 : 1), 1500);   // quem levou, recomeça
+}
+
+function fimDoToque() {
+  if (toquesUsados >= 3) {
+    jogador = jogador === 1 ? 2 : 1;
+    toquesUsados = 0;
+    Som.apito(false);
+  }
+  fase = 'mirando';
+  atualizarHUD();
+}
+
+/* ---------------------- desenho ---------------------- */
+function desenharTabuleiro() {
+  // ripa de madeira
+  const gm = ctx.createLinearGradient(0, 0, W, H);
+  gm.addColorStop(0, '#A06B3C'); gm.addColorStop(.5, '#7A4E2A'); gm.addColorStop(1, '#5E3A1E');
+  ctx.fillStyle = gm; ctx.fillRect(0, 0, W, H);
+
+  // veios da madeira
+  ctx.save(); ctx.globalAlpha = .12; ctx.strokeStyle = '#2E1B0C'; ctx.lineWidth = 1;
+  for (let i = 0; i < 26; i++) {
+    const y = (i * 27 + 9) % H;
+    ctx.beginPath(); ctx.moveTo(0, y);
+    ctx.bezierCurveTo(W * .3, y + 7, W * .7, y - 7, W, y + 2); ctx.stroke();
+  }
+  ctx.restore();
+
+  // gramado pintado
+  const gg = ctx.createLinearGradient(0, CAMPO.y, 0, CAMPO.y + CAMPO.h);
+  gg.addColorStop(0, '#2E7D46'); gg.addColorStop(.5, '#35894E'); gg.addColorStop(1, '#2E7D46');
+  ctx.fillStyle = gg; ctx.fillRect(CAMPO.x, CAMPO.y, CAMPO.w, CAMPO.h);
+
+  // faixas do corte da grama
+  ctx.save(); ctx.globalAlpha = .07; ctx.fillStyle = '#FFFFFF';
+  for (let i = 0; i < 10; i += 2) ctx.fillRect(CAMPO.x, CAMPO.y + i * CAMPO.h / 10, CAMPO.w, CAMPO.h / 10);
+  ctx.restore();
+
+  // linhas
+  ctx.strokeStyle = 'rgba(247,242,232,.82)'; ctx.lineWidth = 2;
+  ctx.strokeRect(CAMPO.x + 7, CAMPO.y + 7, CAMPO.w - 14, CAMPO.h - 14);
+  ctx.beginPath(); ctx.moveTo(CAMPO.x + 7, H / 2); ctx.lineTo(CAMPO.x + CAMPO.w - 7, H / 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(CX, H / 2, 52, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(CX, H / 2, 3.5, 0, Math.PI * 2); ctx.fillStyle = 'rgba(247,242,232,.82)'; ctx.fill();
+
+  // grandes áreas
+  const areaW = 168, areaH = 74;
+  ctx.strokeRect(CX - areaW / 2, CAMPO.y + 7, areaW, areaH);
+  ctx.strokeRect(CX - areaW / 2, CAMPO.y + CAMPO.h - 7 - areaH, areaW, areaH);
+
+  desenharGol(CAMPO.y, -1);
+  desenharGol(CAMPO.y + CAMPO.h, 1);
+}
+
+function desenharGol(y, dir) {
+  const prof = 13;
+  ctx.save();
+  // boca do gol aberta na ripa
+  const gg = ctx.createLinearGradient(0, y, 0, y - dir * prof);
+  gg.addColorStop(0, '#1C2A20'); gg.addColorStop(1, '#0C120E');
+  ctx.fillStyle = gg;
+  ctx.fillRect(CX - GOL_MEIA, y + (dir < 0 ? -prof : 0), GOL_MEIA * 2, prof);
+  // rede
+  ctx.strokeStyle = 'rgba(240,244,238,.46)'; ctx.lineWidth = 1;
+  for (let x = CX - GOL_MEIA; x <= CX + GOL_MEIA; x += 7) {
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + dir * -prof); ctx.stroke();
+  }
+  for (let i = 1; i < prof; i += 4) {
+    ctx.beginPath(); ctx.moveTo(CX - GOL_MEIA, y - dir * i); ctx.lineTo(CX + GOL_MEIA, y - dir * i); ctx.stroke();
+  }
+  // travessas
+  ctx.strokeStyle = '#F3EFE6'; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(CX - GOL_MEIA, y - dir * prof); ctx.lineTo(CX - GOL_MEIA, y);
+  ctx.moveTo(CX + GOL_MEIA, y - dir * prof); ctx.lineTo(CX + GOL_MEIA, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* Cabeça do prego pintada com o padrão da camisa. */
+function pintarCamisa(x, y, r, cl) {
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip();
+  const d = r * 2, x0 = x - r, y0 = y - r;
+
+  switch (cl.padrao) {
+    case 'listras':                                   // verticais (Botafogo)
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = i % 2 ? cl.c2 : cl.c1;
+        ctx.fillRect(x0 + i * d / 4, y0, d / 4 + .6, d);
+      }
+      break;
+    case 'listras3':                                  // tricolor vertical (Fluminense)
+      [cl.c1, cl.c3, cl.c2].forEach((c, i) => {
+        ctx.fillStyle = c; ctx.fillRect(x0 + i * d / 3, y0, d / 3 + .6, d);
+      });
+      break;
+    case 'faixas':                                    // horizontais (Flamengo)
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = i % 2 ? cl.c2 : cl.c1;
+        ctx.fillRect(x0, y0 + i * d / 4, d, d / 4 + .6);
+      }
+      break;
+    case 'faixas3':                                   // tricolor horizontal (São Paulo)
+      [cl.c1, cl.c2, cl.c3].forEach((c, i) => {
+        ctx.fillStyle = c; ctx.fillRect(x0, y0 + i * d / 3, d, d / 3 + .6);
+      });
+      break;
+    case 'diagonal':                                  // faixa cruzada (Vasco)
+      ctx.fillStyle = cl.c1; ctx.fillRect(x0, y0, d, d);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.PI / 4);
+      ctx.fillStyle = cl.c2; ctx.fillRect(-r, -r * .34, d, r * .68); ctx.restore();
+      break;
+    case 'gola':                                      // liso com gola marcada (Corinthians)
+      ctx.fillStyle = cl.c1; ctx.fillRect(x0, y0, d, d);
+      ctx.fillStyle = cl.c2; ctx.fillRect(x0, y0, d, d * .26);
+      break;
+    default:                                          // liso (Palmeiras, Santos)
+      ctx.fillStyle = cl.c1; ctx.fillRect(x0, y0, d, d);
+  }
+  ctx.restore();
+}
+
+function desenharPregos() {
+  for (const pr of pregos) {
+    const tr = pr.tremor > 0 ? Math.sin(pr.tremor * 22) * pr.tremor * 1.6 : 0;
+    const x = pr.x + tr, y = pr.y;
+    const cl = clube(pr.time);
+
+    ctx.beginPath(); ctx.arc(x + 1.5, y + 2.5, R_PREGO + 1.8, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.fill();                 // sombra na grama
+
+    const g = ctx.createRadialGradient(x - 2.4, y - 2.8, .5, x, y, R_PREGO + 2);
+    g.addColorStop(0, '#FFFFFF'); g.addColorStop(.45, '#CDD4DD');
+    g.addColorStop(.85, '#828A95'); g.addColorStop(1, '#4E555F');
+    ctx.beginPath(); ctx.arc(x, y, R_PREGO + 1.4, 0, Math.PI * 2); // corpo do prego
+    ctx.fillStyle = g; ctx.fill();
+
+    pintarCamisa(x, y, R_PREGO - .2, cl);                          // cabeça pintada
+
+    ctx.beginPath(); ctx.arc(x, y, R_PREGO - .2, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(20,16,12,.6)'; ctx.lineWidth = 1; ctx.stroke();
+
+    ctx.beginPath(); ctx.arc(x - R_PREGO * .32, y - R_PREGO * .38, R_PREGO * .3, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.42)'; ctx.fill();           // brilho do verniz
+
+    if (pr.tremor > 0) pr.tremor = Math.max(0, pr.tremor - 0.055);
+  }
+}
+
+function desenharBola() {
+  const { x, y } = bola;
+  ctx.beginPath(); ctx.ellipse(x + 2, y + 3.5, R_BOLA, R_BOLA * .8, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.fill();
+
+  const g = ctx.createLinearGradient(x - R_BOLA, y - R_BOLA, x + R_BOLA, y + R_BOLA);
+  g.addColorStop(0, '#FFF8DC'); g.addColorStop(.35, '#E8C86A');
+  g.addColorStop(.62, '#B8922F'); g.addColorStop(1, '#F0DE9A');
+  ctx.beginPath(); ctx.arc(x, y, R_BOLA, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = 'rgba(90,66,15,.85)'; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, R_BOLA - 3, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1; ctx.stroke();
+}
+
+function desenharMira() {
+  if (!mira || fase !== 'mirando') return;
+  const dx = bola.x - mira.x, dy = bola.y - mira.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 4) return;
+  const forca = Math.min(dist / 9, FORCA_MAX);
+  const p = forca / FORCA_MAX;
+  const nx = dx / dist, ny = dy / dist;
+
+  // faixa de puxada (pra trás, como o dedo puxando)
+  ctx.save();
+  ctx.setLineDash([5, 5]); ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255,255,255,.5)';
+  ctx.beginPath(); ctx.moveTo(bola.x, bola.y); ctx.lineTo(mira.x, mira.y); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // trajetória prevista
+  const alc = 26 + p * 190;
+  const cor = p < .45 ? '106,214,124' : p < .8 ? '240,200,80' : '236,86,72';
+  const grad = ctx.createLinearGradient(bola.x, bola.y, bola.x + nx * alc, bola.y + ny * alc);
+  grad.addColorStop(0, `rgba(${cor},.95)`); grad.addColorStop(1, `rgba(${cor},0)`);
+  ctx.strokeStyle = grad; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(bola.x + nx * (R_BOLA + 2), bola.y + ny * (R_BOLA + 2));
+  ctx.lineTo(bola.x + nx * alc, bola.y + ny * alc); ctx.stroke();
+
+  // ponta de seta
+  const px = bola.x + nx * alc, py = bola.y + ny * alc;
+  const ang = Math.atan2(ny, nx);
+  ctx.fillStyle = `rgba(${cor},.95)`;
+  ctx.beginPath();
+  ctx.moveTo(px + Math.cos(ang) * 9, py + Math.sin(ang) * 9);
+  ctx.lineTo(px + Math.cos(ang + 2.5) * 8, py + Math.sin(ang + 2.5) * 8);
+  ctx.lineTo(px + Math.cos(ang - 2.5) * 8, py + Math.sin(ang - 2.5) * 8);
+  ctx.closePath(); ctx.fill();
+
+  // anel de força na moeda
+  ctx.beginPath(); ctx.arc(bola.x, bola.y, R_BOLA + 6, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2);
+  ctx.strokeStyle = `rgba(${cor},.9)`; ctx.lineWidth = 3; ctx.stroke();
+  ctx.restore();
+}
+
+function desenharSetaDoAtaque() {
+  if (fase === 'fim') return;
+  const paraCima = jogador === 1;
+  const y = paraCima ? CAMPO.y + 26 : CAMPO.y + CAMPO.h - 26;
+  const pulso = .35 + Math.abs(Math.sin(Date.now() / 460)) * .35;
+  ctx.save();
+  ctx.globalAlpha = pulso;
+  ctx.fillStyle = clube(jogador).c1;
+  ctx.beginPath();
+  const d = paraCima ? -1 : 1;
+  ctx.moveTo(CX, y + d * 11); ctx.lineTo(CX - 11, y - d * 5); ctx.lineTo(CX + 11, y - d * 5);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function laco() {
+  passo();
+
+  ctx.save();
+  if (tremor > 0) {                                   // chacoalhada do gol
+    ctx.translate((Math.random() - .5) * tremor, (Math.random() - .5) * tremor);
+    tremor *= .88; if (tremor < .3) tremor = 0;
+  }
+
+  desenharTabuleiro();
+  desenharSetaDoAtaque();
+  desenharPregos();
+  desenharBola();
+  desenharMira();
+
+  if (brilhoGol > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${brilhoGol * .35})`;
+    ctx.fillRect(0, 0, W, H);
+    brilhoGol -= .045;
+  }
+  ctx.restore();
+
+  requestAnimationFrame(laco);
+}
+
+/* ---------------------- botões ---------------------- */
+document.getElementById('btnRegra').onclick = e => {
+  golSoNoTerceiro = !golSoNoTerceiro;
+  e.currentTarget.classList.toggle('on', golSoNoTerceiro);
+  e.currentTarget.textContent = golSoNoTerceiro ? '⚽ Gol só no 3º toque' : '⚽ Gol em qualquer toque';
+  atualizarHUD();
+};
+document.getElementById('btnSom').onclick = e => {
+  const on = Som.alternar();
+  e.currentTarget.classList.toggle('on', on);
+  e.currentTarget.textContent = on ? '🔊 Som' : '🔇 Sem som';
+};
+document.getElementById('btnNovo').onclick = () => { Som.ligar(); novaPartida(); };
+document.getElementById('btnTimes').onclick = () => { Som.ligar(); abrirEscolha(); };
+
+/* ---------------------- escolha dos times ---------------------- */
+const telaTimes = document.getElementById('telaTimes');
+const gradeTimes = document.getElementById('gradeTimes');
+const subTela = document.getElementById('subTela');
+const elConfronto = document.getElementById('confronto');
+let escolhendo = 1;
+
+function montarGrade() {
+  gradeTimes.innerHTML = '';
+  for (const chave of ORDEM_CLUBES) {
+    const cl = CLUBES[chave];
+    const b = document.createElement('button');
+    b.className = 'cardTime';
+    b.innerHTML = `<span class="camisa" style="background:${fundoCamisa(cl)}"></span>
+                   <span class="txt">${cl.nome}<em>${escolhendo === 1 ? 'Jogador 1' : 'Jogador 2'}</em></span>`;
+    if (escolhendo === 2 && chave === times[1]) b.disabled = true;   // nao pode repetir o clube
+    b.onclick = () => escolher(chave);
+    gradeTimes.appendChild(b);
+  }
+}
+
+function escolher(chave) {
+  Som.ligar();
+  times[escolhendo] = chave;
+  if (escolhendo === 1) {
+    escolhendo = 2;
+    subTela.innerHTML = 'Agora o time do <b>Jogador 2</b>';
+    montarGrade(); pintarConfronto();
+  } else {
+    Som.apito(false);
+    telaTimes.classList.add('oculta');
+    novaPartida();
+  }
+}
+
+function pintarConfronto() {
+  const cl = CLUBES[times[1]];
+  elConfronto.innerHTML = `<span class="camisa" style="background:${fundoCamisa(cl)}"></span>
+                           <span>${cl.nome} joga de baixo pra cima</span>`;
+}
+
+function abrirEscolha() {
+  escolhendo = 1;
+  subTela.innerHTML = 'Escolha o time do <b>Jogador 1</b>';
+  elConfronto.innerHTML = '';
+  montarGrade();
+  telaTimes.classList.remove('oculta');
+}
+
+document.getElementById('btnRefazer').onclick = abrirEscolha;
+
+/* ---------------------- abertura ----------------------
+   O clique em "Iniciar" é o gesto que os navegadores exigem para
+   liberar som e tela cheia. Só depois dele as vinhetas rodam.        */
+const abertura = document.getElementById('abertura');
+const cine = document.getElementById('cine');
+const vinheta = document.getElementById('vinheta');
+const intro = document.getElementById('intro');
+
+for (const el of document.querySelectorAll('.abertura .fundo, .abertura .arte')) {
+  el.style.backgroundImage = "url('assets/splash.jpg')";
+}
+
+async function telaCheia() {
+  const alvo = document.documentElement;
+  try {
+    if (alvo.requestFullscreen) await alvo.requestFullscreen({ navigationUI: 'hide' });
+    else if (alvo.webkitRequestFullscreen) alvo.webkitRequestFullscreen();
+  } catch (e) { /* iPhone não deixa em elemento comum: segue sem tela cheia */ }
+  try { await screen.orientation?.lock?.('portrait'); } catch (e) { /* opcional */ }
+}
+
+function pronto(v) {                       // espera o vídeo ter dados suficientes
+  return v.readyState >= 3 ? Promise.resolve()
+    : new Promise(r => {
+        const ok = () => { v.removeEventListener('canplay', ok); r(); };
+        v.addEventListener('canplay', ok);
+        setTimeout(r, 6000);               // não trava a abertura se a rede falhar
+      });
+}
+
+function tocar(v) {
+  return new Promise(resolve => {
+    let fim = false;
+    const acabou = () => { if (!fim) { fim = true; limpar(); resolve(); } };
+    const limpar = () => {
+      v.removeEventListener('ended', acabou);
+      v.removeEventListener('error', acabou);
+      pularAtual = null;
+    };
+    v.addEventListener('ended', acabou);
+    v.addEventListener('error', acabou);
+    pularAtual = acabou;                   // o botão Pular encerra este vídeo
+    v.currentTime = 0;
+    v.muted = false;
+    v.volume = 1;
+    v.play().catch(acabou);                // se o navegador bloquear, não trava
+  });
+}
+
+let pularAtual = null;
+document.getElementById('btnPular').onclick = () => { if (pularAtual) pularAtual(); };
+
+async function iniciar() {
+  abertura.classList.add('aguardando');
+  Som.ligar();                             // destrava o áudio do jogo no mesmo gesto
+  await telaCheia();
+  await pronto(vinheta);
+
+  abertura.classList.add('oculta');
+  cine.classList.add('on');
+
+  intro.classList.add('esconde');
+  await tocar(vinheta);                    // 1) vinheta da produtora
+
+  vinheta.pause();
+  vinheta.classList.add('esconde');
+  intro.classList.remove('esconde');
+  await pronto(intro);
+  await tocar(intro);                      // 2) abertura do Pregobol com a música
+
+  intro.pause();
+  cine.classList.remove('on');
+  abrirEscolha();                          // 3) escolha dos times
+}
+
+document.getElementById('btnIniciar').onclick = iniciar;
+
+/* ---------------------- início ---------------------- */
+ajustarEscala();
+novaPartida();
+laco();
+</script>
+</body>
+</html>
