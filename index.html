@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Pregobol  Futebol de Prego</title>
+<title>Pregobol · Futebol de Prego</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   :root{
@@ -939,6 +939,18 @@ function pronto(v) {
 }
 
 let pularAtual = null;
+
+/* destrava os vídeos ainda dentro do clique do usuário:
+   um play() mudo seguido de pause() marca o elemento como liberado,
+   então o play() de verdade (com som) não é bloqueado depois dos await */
+function destravar(v) {
+  try {
+    v.muted = true;
+    const p = v.play();
+    if (p && p.then) p.then(() => { v.pause(); v.currentTime = 0; }).catch(() => {});
+  } catch (e) { /* segue o jogo */ }
+}
+
 function tocar(v) {
   return new Promise(resolve => {
     let fim = false;
@@ -947,15 +959,28 @@ function tocar(v) {
       pularAtual = null; resolve(); };
     v.addEventListener('ended', acabou); v.addEventListener('error', acabou);
     pularAtual = acabou;
-    v.currentTime = 0; v.muted = false; v.volume = 1;
-    v.play().catch(acabou);
+    v.currentTime = 0; v.volume = 1;
+    v.muted = !Som.ligado;
+
+    const tentar = p => { if (p && p.catch) p.catch(() => {
+      // som bloqueado pelo navegador: toca mudo em vez de pular o vídeo
+      v.muted = true;
+      const p2 = v.play();
+      if (p2 && p2.catch) p2.catch(acabou);
+    }); };
+    tentar(v.play());
   });
 }
 document.getElementById('btnPular').onclick = () => pularAtual && pularAtual();
 
+let jaIniciou = false;
 async function iniciar() {
+  if (jaIniciou) return;
+  jaIniciou = true;
   abertura.classList.add('aguardando');
   Som.ligar();
+  destravar(vinheta); destravar(intro);   // ainda dentro do gesto do usuário
+  intro.load();                           // começa a baixar a abertura desde já
   await telaCheiaPaisagem();
   await pronto(vinheta);
   abertura.classList.add('oculta');
