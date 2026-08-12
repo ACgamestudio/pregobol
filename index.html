@@ -201,6 +201,9 @@
   <button class="btnPular" id="btnPular">Pular ⏭</button>
 </div>
 
+<!-- ===================== música de abertura ===================== -->
+<audio id="musica" src="assets/musica.mp3" preload="auto" loop></audio>
+
 <!-- ===================== menu ===================== -->
 <div class="tela menu oculta" id="menu">
   <div class="fundo"></div>
@@ -940,6 +943,42 @@ function pronto(v) {
 
 let pularAtual = null;
 
+/* ---------------- música da abertura ----------------
+   toca do vídeo de abertura até a escolha do gramado */
+const musica = document.getElementById('musica');
+let musicaAtiva = false;
+
+function tocarMusica() {
+  musicaAtiva = true;
+  musica.loop = true;
+  musica.volume = .75;
+  musica.muted = !Som.ligado;
+  try { musica.currentTime = 0; } catch (e) {}
+  const p = musica.play();
+  if (p && p.catch) p.catch(() => { musica.muted = true; const q = musica.play(); if (q && q.catch) q.catch(() => {}); });
+}
+
+function pararMusica() {
+  if (!musicaAtiva) return;
+  musicaAtiva = false;
+  const passo = musica.volume / 12;
+  const esmaece = setInterval(() => {                    // desliga suave
+    musica.volume = Math.max(0, musica.volume - passo);
+    if (musica.volume <= 0.01) {
+      clearInterval(esmaece);
+      musica.pause();
+      try { musica.currentTime = 0; } catch (e) {}
+      musica.volume = .75;
+    }
+  }, 55);
+}
+
+function sincronizarMusica() {                           // segue o botão de som
+  if (!musicaAtiva) return;
+  musica.muted = !Som.ligado;
+  if (Som.ligado && musica.paused) { const p = musica.play(); if (p && p.catch) p.catch(() => {}); }
+}
+
 /* destrava os vídeos ainda dentro do clique do usuário:
    um play() mudo seguido de pause() marca o elemento como liberado,
    então o play() de verdade (com som) não é bloqueado depois dos await */
@@ -979,7 +1018,7 @@ async function iniciar() {
   jaIniciou = true;
   abertura.classList.add('aguardando');
   Som.ligar();
-  destravar(vinheta); destravar(intro);   // ainda dentro do gesto do usuário
+  destravar(vinheta); destravar(intro); destravar(musica);  // ainda dentro do gesto do usuário
   intro.load();                           // começa a baixar a abertura desde já
   await telaCheiaPaisagem();
   await pronto(vinheta);
@@ -990,7 +1029,8 @@ async function iniciar() {
   vinheta.pause(); vinheta.classList.add('esconde');
   intro.classList.remove('esconde');
   await pronto(intro);
-  await tocar(intro);                                    // abertura com a música
+  tocarMusica();                                         // a música entra com a abertura
+  await tocar(intro);                                    // vídeo de abertura (mudo)
   intro.pause();
   cine.classList.remove('on');
   abrirMenu();
@@ -1023,6 +1063,7 @@ document.getElementById('cardNivel').onclick = () => {          // gira Fácil �
 };
 document.getElementById('cardSom').onclick = e => {
   const on = Som.alternar();
+  sincronizarMusica();
   document.getElementById('somEstado').textContent = on ? 'Ligado' : 'Desligado';
   const b = document.getElementById('btnSom');
   b.classList.toggle('on', on); b.textContent = on ? '🔊 Som' : '🔇 Sem som';
@@ -1079,6 +1120,7 @@ function montarGradeCampos() {
     if (chave === campoAtual) b.classList.add('on');
     b.onclick = () => {
       Som.ligar(); campoAtual = chave;
+      pararMusica();                                     // a música vai até a escolha do gramado
       if (campoAntesDeJogar) { fecharTelas(); novaPartida(); }
       else { montarGradeCampos(); }
     };
@@ -1099,6 +1141,7 @@ document.getElementById('voltarMenu2').onclick = abrirMenu;
 document.getElementById('btnMenu').onclick = () => { Som.ligar(); abrirMenu(); };
 document.getElementById('btnSom').onclick = e => {
   const on = Som.alternar();
+  sincronizarMusica();
   e.currentTarget.classList.toggle('on', on);
   e.currentTarget.textContent = on ? '🔊 Som' : '🔇 Sem som';
 };
