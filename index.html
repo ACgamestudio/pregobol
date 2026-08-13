@@ -15,13 +15,13 @@
   body{
     font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     color:var(--carne);display:flex;flex-direction:column;align-items:center;
-    justify-content:center;gap:7px;padding:7px;touch-action:none;
+    justify-content:center;gap:7px;padding:7px 0;touch-action:none;
     background:radial-gradient(900px 600px at 50% 0%,#241a12,#0B0806 72%);
   }
 
   /* ================= placar ================= */
   .placar{
-    width:100%;display:flex;align-items:stretch;gap:8px;
+    width:calc(100% - 14px);display:flex;align-items:stretch;gap:8px;
     background:linear-gradient(180deg,#241A12,#180F0A);
     border:1px solid #3B2A1C;border-radius:11px;padding:7px 10px;
   }
@@ -37,9 +37,11 @@
   .vez .rot{font-size:8.5px;letter-spacing:.16em;color:#8C755C;text-transform:uppercase;}
   .vez .quem{font-size:13px;font-weight:800;line-height:1.2;margin-top:2px;}
   .vez .quem.pensando{color:#FFD24A;}
+  .vez .serie{display:block;font-size:8.5px;font-weight:700;letter-spacing:.06em;
+              color:#8C755C;margin-top:2px;text-transform:uppercase;}
 
   /* ================= tabuleiro ================= */
-  .board-wrap{position:relative;}
+  .board-wrap{position:relative;width:100%;display:flex;justify-content:center;}
   canvas{display:block;border-radius:9px;box-shadow:0 16px 36px rgba(0,0,0,.65),0 2px 0 #A9906F;}
   .aviso{
     position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);
@@ -52,7 +54,7 @@
   .aviso span{font-size:12.5px;color:#B49B7E;line-height:1.35;}
 
   /* ================= barra ================= */
-  .barra{width:100%;display:flex;align-items:center;gap:7px;}
+  .barra{width:calc(100% - 14px);display:flex;align-items:center;gap:7px;}
   button{
     font:inherit;font-size:12px;font-weight:600;color:var(--carne);cursor:pointer;
     background:#2B1E14;border:1px solid #4A3423;border-radius:8px;padding:8px 12px;
@@ -111,74 +113,69 @@
             letter-spacing:.12em;text-transform:uppercase;background:rgba(12,16,22,.6);
             border:1px solid rgba(255,255,255,.28);border-radius:9px;padding:9px 15px;}
 
-  /* --- menu principal (sobre a arte) --- */
-  .menu{z-index:50;justify-content:flex-end;gap:0;padding:0;background:#07050A;}
+  /* --- menu principal: a arte do splash inteira, com as opções pichadas
+         na parede como grafite, no mesmo espírito de "RESPEITO/FOCO/DIVERSÃO" --- */
+  .menu{z-index:50;justify-content:center;align-items:flex-end;gap:0;padding:0;background:#07050A;
+        overflow:hidden;}
   .menu .fundo,.menu .arte{position:absolute;inset:0;}
-  .menu .fundo{background:center/cover no-repeat;filter:blur(24px) brightness(.5);transform:scale(1.08);}
-  .menu .arte{background:center 30%/contain no-repeat;}
+  .menu .fundo{background:center/cover no-repeat;filter:blur(30px) brightness(.4);transform:scale(1.1);}
+  .menu .arte{background:center/cover no-repeat;}          /* splash nítido, tela cheia */
+  /* escurece só a base, para o letreiro de opções respirar sobre a mesa */
   .menu::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
-    background:linear-gradient(180deg,rgba(10,7,4,0) 34%,rgba(12,8,5,.68) 68%,rgba(8,5,3,.96) 100%);}
+    background:linear-gradient(180deg,rgba(10,7,4,.10) 0 40%,rgba(10,7,4,.30) 62%,rgba(6,4,2,.82) 100%);}
 
-  /* título estêncil, no clima da parede grafitada do fundo */
-  .menu .titulo{
-    position:relative;z-index:2;width:100%;text-align:center;padding:16px 14px 0;
-    pointer-events:none;
-  }
-  .menu .titulo b{
-    display:block;font-size:clamp(26px,6vw,42px);font-weight:800;letter-spacing:.05em;
-    text-transform:uppercase;color:#F2E4CE;
-    text-shadow:0 0 1px #000,2px 0 0 rgba(0,0,0,.5),-2px 0 0 rgba(0,0,0,.5),
-                0 3px 0 rgba(0,0,0,.6),0 8px 18px rgba(0,0,0,.6);
-    -webkit-text-stroke:1.5px rgba(20,14,8,.55);
-  }
-  .menu .titulo span{
-    display:inline-block;margin-top:5px;font-size:10.5px;letter-spacing:.34em;
-    text-transform:uppercase;color:#C7A876;text-shadow:0 2px 4px rgba(0,0,0,.6);
-  }
+  /* o título fica escondido — a própria arte já traz "PREGOBOL" no balde;
+     mantemos o elemento no DOM mas fora de vista */
+  .menu .titulo{display:none;}
 
-  .cards{position:relative;z-index:2;display:flex;gap:10px;flex-wrap:wrap;
-         justify-content:center;padding:0 14px 22px;width:100%;}
+  /* painel de opções: grafite pichado, alinhado à base como um letreiro de muro */
+  .cards{position:relative;z-index:2;display:flex;flex-direction:column;align-items:flex-start;
+         gap:clamp(2px,1.4vh,10px);padding:0 6vw clamp(14px,4vh,34px);width:100%;pointer-events:none;}
+
+  /* cada opção é um "risco de tinta" na parede: sem caixa, só texto e um traço */
   .card{
-    position:relative;width:132px;min-height:96px;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:5px;padding:11px 8px;border:none;
-    border-radius:9px;color:#F2E4CE;font-size:14px;font-weight:800;letter-spacing:.02em;
-    text-transform:uppercase;text-shadow:0 2px 3px rgba(0,0,0,.55);
-    box-shadow:0 5px 0 rgba(0,0,0,.5),0 12px 26px rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.35);
-    background-blend-mode:overlay;
-    background-image:repeating-linear-gradient(115deg,rgba(0,0,0,.16) 0 2px,transparent 2px 7px);
+    pointer-events:auto;position:relative;display:inline-flex;align-items:baseline;gap:10px;
+    background:none;border:none;padding:2px 4px;cursor:pointer;text-align:left;
+    color:#F4E9D2;font-weight:800;letter-spacing:.02em;text-transform:uppercase;
+    font-size:clamp(19px,4.6vw,34px);line-height:1.05;
+    text-shadow:0 1px 0 rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.6),0 0 2px rgba(0,0,0,.7);
+    transform:rotate(-1.4deg);transition:transform .12s,color .12s,text-shadow .12s;
   }
-  .card:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 0 0 1px rgba(0,0,0,.35);}
-  .card .ico{font-size:26px;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5));}
-  .card em{font-style:normal;font-size:9.5px;font-weight:700;letter-spacing:.1em;opacity:.9;}
+  .card .ico{font-size:.82em;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6));
+             transform:translateY(2px);}
+  /* o "em" vira uma legenda a giz ao lado, menor e mais apagada */
+  .card em{font-style:normal;font-weight:700;font-size:.34em;letter-spacing:.14em;
+           color:#E7C98C;opacity:.82;text-shadow:0 1px 3px rgba(0,0,0,.7);
+           transform:rotate(1.4deg) translateY(-.2em);}
+  /* leve variação de inclinação para dar cara de pichação feita à mão */
+  .card:nth-child(odd){transform:rotate(-2.2deg);}
+  .card:nth-child(even){transform:rotate(-.6deg);}
+  .card:hover{color:#FFF6E2;}
+  .card:active{transform:rotate(-1deg) translateY(2px) scale(.98);color:#FFD24A;}
+  /* risco de spray sob o texto ao tocar/passar */
+  .card::after{content:"";position:absolute;left:2px;right:6px;bottom:-2px;height:3px;
+    background:linear-gradient(90deg,rgba(255,210,74,.9),rgba(255,210,74,0));
+    border-radius:2px;transform:scaleX(0);transform-origin:left;transition:transform .16s;}
+  .card:hover::after,.card:active::after{transform:scaleX(1);}
 
-  /* paleta terrosa: madeira, ferrugem, latão, grama, ferro velho — como na mesa do splash */
-  .card.verde{background-color:#3E7A2E;background-image:linear-gradient(180deg,#5C9A3F,#2E5E1F),
-              repeating-linear-gradient(115deg,rgba(0,0,0,.16) 0 2px,transparent 2px 7px);
-              background-blend-mode:normal,overlay;}
-  .card.madeira{background-color:#8A5A2E;background-image:linear-gradient(180deg,#A97438,#6B4420),
-              repeating-linear-gradient(115deg,rgba(0,0,0,.16) 0 2px,transparent 2px 7px);
-              background-blend-mode:normal,overlay;}
-  .card.ferrugem{background-color:#A15A2C;background-image:linear-gradient(180deg,#C17840,#7A3B18),
-              repeating-linear-gradient(115deg,rgba(0,0,0,.16) 0 2px,transparent 2px 7px);
-              background-blend-mode:normal,overlay;}
-  .card.ferro{background-color:#5B5F66;background-image:linear-gradient(180deg,#787E86,#3A3E44),
-              repeating-linear-gradient(115deg,rgba(0,0,0,.16) 0 2px,transparent 2px 7px);
-              background-blend-mode:normal,overlay;}
-  .card.carvao{background-color:#3A2C20;background-image:linear-gradient(180deg,#4E3B29,#241A11),
-              repeating-linear-gradient(115deg,rgba(0,0,0,.16) 0 2px,transparent 2px 7px);
-              background-blend-mode:normal,overlay;}
-
-  /* card "online" — em breve, com selo estilo carimbo/grafite */
-  .card.online{background-color:#3A3128;background-image:linear-gradient(180deg,#463B30,#221C16),
-              repeating-linear-gradient(115deg,rgba(0,0,0,.18) 0 2px,transparent 2px 7px);
-              background-blend-mode:normal,overlay;color:#B7A489;opacity:.62;cursor:not-allowed;}
-  .card.online .ico{filter:grayscale(.4) drop-shadow(0 2px 2px rgba(0,0,0,.5));}
-  .card.online:active{transform:none;}
+  /* opção "online" — riscada, com carimbo EM BREVE, como pichação tampada */
+  .card.online{color:#B7A489;opacity:.6;cursor:not-allowed;transform:rotate(-1.4deg);}
+  .card.online .ico{filter:grayscale(.5) drop-shadow(0 2px 3px rgba(0,0,0,.6));}
+  .card.online::before{content:"";position:absolute;left:-2px;right:-2px;top:52%;height:2px;
+    background:rgba(231,201,140,.7);transform:rotate(-3deg);}   /* riscado por cima */
+  .card.online::after{display:none;}
+  .card.online:active{transform:rotate(-1.4deg);color:#B7A489;}
   .selo{
-    position:absolute;top:6px;right:-6px;transform:rotate(11deg);
-    font-size:8px;font-weight:800;letter-spacing:.09em;color:#E8DAC0;
-    border:1.5px dashed rgba(232,218,192,.75);border-radius:5px;padding:2px 5px;
-    background:rgba(0,0,0,.32);text-shadow:none;
+    margin-left:6px;transform:rotate(6deg);display:inline-block;
+    font-size:.3em;font-weight:800;letter-spacing:.1em;color:#E8DAC0;
+    border:1.5px dashed rgba(232,218,192,.75);border-radius:5px;padding:2px 6px;
+    background:rgba(0,0,0,.35);text-shadow:none;
+  }
+
+  /* em telas bem baixas (celular deitado) aperta o letreiro para caber tudo */
+  @media (max-height:430px){
+    .cards{gap:1px;padding-bottom:8px;}
+    .card{font-size:clamp(15px,4vw,22px);}
   }
 
   /* --- grades de escolha --- */
@@ -230,7 +227,7 @@
   <button id="btnMenu">☰ Menu</button>
   <button id="btnSom" class="on">🔊 Som</button>
   <button id="btnNovo">↺ Nova partida</button>
-  <div class="dica">Uma jogada por vez. Puxe a partir da moeda e solte.</div>
+  <div class="dica">3 petelecos por vez — o gol só vale no 3º. Puxe a moeda e solte.</div>
 </div>
 
 <!-- ===================== abertura ===================== -->
@@ -250,18 +247,21 @@
 <!-- ===================== música de abertura ===================== -->
 <audio id="musica" src="assets/musica.mp3" preload="auto" loop></audio>
 
+<!-- ===================== trilha das partidas (aleatória) ===================== -->
+<audio id="trilha" preload="auto"></audio>
+
 <!-- ===================== menu ===================== -->
 <div class="tela menu oculta" id="menu">
   <div class="fundo"></div>
   <div class="arte"></div>
   <div class="titulo"><b>Pregobol</b><span>Respeito · Foco · Diversão</span></div>
   <div class="cards">
-    <button class="card verde" id="cardIA"><span class="ico">⚽</span>Jogar<em>Contra a IA</em></button>
-    <button class="card madeira" id="card2P"><span class="ico">👥</span>2 Jogadores<em>Mesmo aparelho</em></button>
-    <button class="card online" id="cardOnline" disabled><span class="selo">Em breve</span><span class="ico">🌐</span>Online<em>Contra outros jogadores</em></button>
-    <button class="card ferrugem" id="cardCampo"><span class="ico">🎨</span>Campo<em>Cores da mesa</em></button>
-    <button class="card ferro" id="cardNivel"><span class="ico">🧠</span>IA<em id="nivelEstado">Forte</em></button>
-    <button class="card carvao" id="cardSom"><span class="ico">🔊</span>Som<em id="somEstado">Ligado</em></button>
+    <button class="card" id="cardIA"><span class="ico">⚽</span>Jogar<em>contra a IA</em></button>
+    <button class="card" id="card2P"><span class="ico">👥</span>2 Jogadores<em>mesmo aparelho</em></button>
+    <button class="card" id="cardCampo"><span class="ico">🎨</span>Campo<em>cores da mesa</em></button>
+    <button class="card" id="cardNivel"><span class="ico">🧠</span>IA<em id="nivelEstado">Forte</em></button>
+    <button class="card" id="cardSom"><span class="ico">🔊</span>Som<em id="somEstado">Ligado</em></button>
+    <button class="card online" id="cardOnline" disabled><span class="ico">🌐</span>Online<span class="selo">em breve</span></button>
   </div>
 </div>
 
@@ -364,6 +364,8 @@ const bola = { x: CX, y: CY, vx: 0, vy: 0 };
 let pregos = [];
 let jogador = 1;                        // 1 ataca à direita | 2 ataca à esquerda
 let placar = { 1:0, 2:0 };
+let peteleco = 0;                       // quantos petelecos já dados no turno (0..3)
+const PETELECOS = 3;                    // só o 3º peteleco pode marcar gol
 let fase = 'mirando';                   // mirando | rolando | pausa | fim | ia
 let mira = null;
 let tremor = 0, brilhoGol = 0;
@@ -398,14 +400,18 @@ function ajustarEscala() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   const placarH = document.querySelector('.placar').offsetHeight || 54;
   const barraH = document.querySelector('.barra').offsetHeight || 42;
-  const dispW = window.innerWidth - 14;
-  const dispH = window.innerHeight - placarH - barraH - (window.innerHeight < 480 ? 16 : 30);
-  const escala = Math.max(0.25, Math.min(dispW / W, dispH / H));
-  cv.style.width = (W * escala) + 'px';
-  cv.style.height = (H * escala) + 'px';
-  cv.width = Math.round(W * escala * dpr);
-  cv.height = Math.round(H * escala * dpr);
-  ctx.setTransform(escala * dpr, 0, 0, escala * dpr, 0, 0);
+  // ocupa 100% da largura da tela (sem margens laterais)
+  const dispW = window.innerWidth;
+  const dispH = window.innerHeight - placarH - barraH - (window.innerHeight < 480 ? 12 : 24);
+  // escala horizontal e vertical independentes: X sempre preenche a tela toda,
+  // Y usa no máximo a mesma escala para não passar da altura disponível.
+  const escX = dispW / W;
+  const escY = Math.min(escX, dispH / H);
+  cv.style.width = (W * escX) + 'px';
+  cv.style.height = (H * escY) + 'px';
+  cv.width = Math.round(W * escX * dpr);
+  cv.height = Math.round(H * escY * dpr);
+  ctx.setTransform(escX * dpr, 0, 0, escY * dpr, 0, 0);
   checarOrientacao();
 }
 window.addEventListener('resize', () => setTimeout(ajustarEscala, 60));
@@ -543,10 +549,31 @@ function passoFisico(e, silencioso) {
 function passo() {
   if (fase !== 'rolando') return;
   const r = passoFisico(bola, false);
-  if (r) { registrarGol(r); return; }
+  if (r) {
+    if (peteleco >= PETELECOS) { registrarGol(r); }  // só vale no 3º peteleco
+    else { golCedoDemais(r); }                        // entrou antes da hora: não conta
+    return;
+  }
   const lenta = Math.hypot(bola.vx, bola.vy) < PARADO;
   const demorou = inicioDaJogada && performance.now() - inicioDaJogada > 7000;
   if (lenta || demorou) { bola.vx = bola.vy = 0; fimDoToque(); }
+}
+
+/* Gol nos petelecos 1 ou 2 não vale: a bola volta ao meio e o mesmo
+   jogador segue a série de onde parou (perde a posição, não a vez). */
+function golCedoDemais(dono) {
+  bola.vx = bola.vy = 0;
+  fase = 'pausa';
+  Som.apito(false);
+  const faltam = PETELECOS - peteleco;
+  mostrarAviso('Cedo demais!',
+    `Gol só vale no ${PETELECOS}º peteleco · ${faltam} restante${faltam > 1 ? 's' : ''}`, 1300);
+  setTimeout(() => {
+    bola.x = CX; bola.y = CY; bola.vx = bola.vy = 0;
+    fase = 'mirando';
+    atualizarHUD();
+    if (modo === 'ia' && jogador === 2) talvezIA();
+  }, 1300);
 }
 
 /* =======================================================================
@@ -586,15 +613,20 @@ function linhaLivre(x, y, paraDireita) {
 
 function avaliar(res, quem) {
   const paraDireita = quem === 1;
-  if (res.gol === quem) return 100000 - res.passos;          // gol: quanto mais rápido, melhor
-  if (res.gol) return -100000;                               // gol contra
+  // este disparo será o (peteleco+1)º da série; só o 3º pode valer gol
+  const podeMarcar = (peteleco + 1) >= PETELECOS;
+  if (res.gol === quem) {
+    return podeMarcar ? 100000 - res.passos     // gol na hora certa: melhor jogada possível
+                      : -50000;                 // gol cedo: não conta e perde a posição
+  }
+  if (res.gol) return -100000;                  // gol contra
   const gx = paraDireita ? CAMPO.x + CAMPO.w : CAMPO.x;
   const meuGx = paraDireita ? CAMPO.x : CAMPO.x + CAMPO.w;
   const dAlvo = Math.hypot(gx - res.x, CY - res.y);
   const dMeu = Math.hypot(meuGx - res.x, CY - res.y);
-  let s = 900 - dAlvo;                                        // aproximar do gol adversário
-  if (linhaLivre(res.x, res.y, paraDireita)) s += 260;        // deixar a moeda com ângulo livre
-  s += Math.min(dMeu, 340) * 0.55;                            // e longe do próprio gol
+  let s = 900 - dAlvo;                           // aproximar do gol adversário
+  if (linhaLivre(res.x, res.y, paraDireita)) s += 260;  // deixar a moeda com ângulo livre
+  s += Math.min(dMeu, 340) * 0.55;              // e longe do próprio gol
   return s;
 }
 
@@ -631,6 +663,7 @@ function jogadaIA() {
   miraIA = { x: bola.x, y: bola.y, ang, forca };
   setTimeout(() => {
     miraIA = null;
+    peteleco++;                                   // conta o peteleco da série da IA
     bola.vx = Math.cos(ang) * forca;
     bola.vy = Math.sin(ang) * forca;
     fase = 'rolando';
@@ -651,14 +684,14 @@ function talvezIA() {
 /* ---------------------- regras ---------------------- */
 function novaPartida() {
   placar = { 1:0, 2:0 };
-  jogador = 1; fase = 'mirando';
+  jogador = 1; peteleco = 0; fase = 'mirando';
   bola.x = CX; bola.y = CY; bola.vx = bola.vy = 0;
   montarPregos(); esconderAviso(); atualizarHUD();
 }
 
 function recomecarDoMeio(quemComeca) {
   bola.x = CX; bola.y = CY; bola.vx = bola.vy = 0;
-  jogador = quemComeca; fase = 'mirando';
+  jogador = quemComeca; peteleco = 0; fase = 'mirando';
   atualizarHUD(); talvezIA();
 }
 
@@ -681,7 +714,16 @@ function registrarGol(dono) {
 }
 
 function fimDoToque() {
-  jogador = jogador === 1 ? 2 : 1;      // uma jogada por vez: passa sempre
+  if (peteleco < PETELECOS) {            // ainda tem peteleco na série: mesmo jogador continua
+    fase = 'mirando';
+    atualizarHUD();
+    if (modo === 'ia' && jogador === 2) talvezIA();
+    return;
+  }
+  // acabou a série de 3 petelecos sem gol: passa a vez
+  jogador = jogador === 1 ? 2 : 1;
+  peteleco = 0;
+  bola.x = CX; bola.y = CY; bola.vx = bola.vy = 0;   // recomeça do meio para o próximo
   fase = 'mirando';
   Som.apito(false);
   atualizarHUD();
@@ -718,7 +760,10 @@ function atualizarHUD() {
   if (fase === 'fim') { elQuem.textContent = 'Fim'; elQuem.className = 'quem'; }
   else if (fase === 'ia') { elQuem.textContent = 'IA pensando…'; elQuem.className = 'quem pensando'; }
   else {
-    elQuem.textContent = (modo === 'ia' && jogador === 2) ? clube(2).nome : clube(jogador).nome;
+    const nome = (modo === 'ia' && jogador === 2) ? clube(2).nome : clube(jogador).nome;
+    const nDisparo = Math.min(peteleco + 1, PETELECOS);   // peteleco que está por vir
+    elQuem.innerHTML = `${nome}<br><span class="serie">Peteleco ${nDisparo} de ${PETELECOS}` +
+                       `${nDisparo === PETELECOS ? ' · vale gol!' : ''}</span>`;
     elQuem.className = 'quem';
   }
 }
@@ -754,6 +799,7 @@ cv.addEventListener('pointerup', () => {
   mira = null;
   if (d < 9) return;
   const forca = Math.min(d / 7, FORCA_MAX);
+  peteleco++;                                     // conta o peteleco da série
   bola.vx = dx / d * forca; bola.vy = dy / d * forca;
   fase = 'rolando'; inicioDaJogada = performance.now();
   Som.peteleco(forca); atualizarHUD();
@@ -1029,6 +1075,65 @@ function sincronizarMusica() {                           // segue o botão de so
   if (Som.ligado && musica.paused) { const p = musica.play(); if (p && p.catch) p.catch(() => {}); }
 }
 
+/* ---------------- trilha das partidas ----------------
+   Uma faixa por partida: sorteada no início e repetida em loop até o fim
+   da partida — não troca de música no meio do jogo. */
+const trilha = document.getElementById('trilha');
+const FAIXAS = [
+  'assets/gol_no_ultimo_minuto.mp3',
+  'assets/asphalt_bleachers.mp3',
+  'assets/grito_da_arquibancada.mp3',
+  'assets/pe_na_grama.mp3'
+];
+let trilhaAtiva = false;
+let faixaAtual = -1;
+const VOL_TRILHA = .22;              // volume de fundo, baixo para não atrapalhar a jogabilidade
+
+function sortearFaixa() {
+  if (FAIXAS.length <= 1) return 0;
+  let i;
+  do { i = Math.floor(Math.random() * FAIXAS.length); } while (i === faixaAtual);
+  return i;
+}
+
+function iniciarTrilha(forcar) {
+  pararMusica();                     // encerra a música da abertura, se ainda estiver tocando
+  if (!forcar && trilhaAtiva && !trilha.paused) return;   // já rolando nesta partida
+  trilhaAtiva = true;
+  faixaAtual = sortearFaixa();       // escolhe UMA música para esta partida
+  trilha.src = FAIXAS[faixaAtual];
+  trilha.loop = true;                // e repete ela até a partida acabar
+  trilha.volume = VOL_TRILHA;
+  trilha.muted = !Som.ligado;
+  try { trilha.currentTime = 0; } catch (e) {}
+  const p = trilha.play();
+  if (p && p.catch) p.catch(() => {            // som bloqueado: toca mudo até haver gesto
+    trilha.muted = true; const q = trilha.play(); if (q && q.catch) q.catch(() => {});
+  });
+}
+
+function pararTrilha() {
+  if (!trilhaAtiva) return;
+  trilhaAtiva = false;
+  const alvo = trilha.volume;
+  const passo = (alvo || VOL_TRILHA) / 12;
+  const esmaece = setInterval(() => {           // desliga suave
+    trilha.volume = Math.max(0, trilha.volume - passo);
+    if (trilha.volume <= 0.01) {
+      clearInterval(esmaece);
+      trilha.pause();
+      try { trilha.currentTime = 0; } catch (e) {}
+      trilha.volume = VOL_TRILHA;
+    }
+  }, 55);
+}
+
+function sincronizarTrilha() {                   // segue o botão de som
+  if (!trilhaAtiva) return;
+  trilha.muted = !Som.ligado;
+  if (Som.ligado && trilha.paused) { const p = trilha.play(); if (p && p.catch) p.catch(() => {}); }
+}
+
 /* destrava os vídeos ainda dentro do clique do usuário:
    um play() mudo seguido de pause() marca o elemento como liberado,
    então o play() de verdade (com som) não é bloqueado depois dos await */
@@ -1113,7 +1218,7 @@ document.getElementById('cardNivel').onclick = () => {          // gira Fácil �
 };
 document.getElementById('cardSom').onclick = e => {
   const on = Som.alternar();
-  sincronizarMusica();
+  sincronizarMusica(); sincronizarTrilha();
   document.getElementById('somEstado').textContent = on ? 'Ligado' : 'Desligado';
   const b = document.getElementById('btnSom');
   b.classList.toggle('on', on); b.textContent = on ? '🔊 Som' : '🔇 Sem som';
@@ -1170,9 +1275,8 @@ function montarGradeCampos() {
     if (chave === campoAtual) b.classList.add('on');
     b.onclick = () => {
       Som.ligar(); campoAtual = chave;
-      pararMusica();                                     // a música vai até a escolha do gramado
-      if (campoAntesDeJogar) { fecharTelas(); novaPartida(); }
-      else { montarGradeCampos(); }
+      if (campoAntesDeJogar) { fecharTelas(); novaPartida(); iniciarTrilha(); talvezIA(); }
+      else { pararMusica(); montarGradeCampos(); }
     };
     gradeCampos.appendChild(b);
   }
@@ -1188,14 +1292,14 @@ document.getElementById('voltarMenu1').onclick = abrirMenu;
 document.getElementById('voltarMenu2').onclick = abrirMenu;
 
 /* ---- barra ---- */
-document.getElementById('btnMenu').onclick = () => { Som.ligar(); abrirMenu(); };
+document.getElementById('btnMenu').onclick = () => { Som.ligar(); pararTrilha(); abrirMenu(); };
 document.getElementById('btnSom').onclick = e => {
   const on = Som.alternar();
-  sincronizarMusica();
+  sincronizarMusica(); sincronizarTrilha();
   e.currentTarget.classList.toggle('on', on);
   e.currentTarget.textContent = on ? '🔊 Som' : '🔇 Sem som';
 };
-document.getElementById('btnNovo').onclick = () => { Som.ligar(); novaPartida(); talvezIA(); };
+document.getElementById('btnNovo').onclick = () => { Som.ligar(); novaPartida(); iniciarTrilha(true); talvezIA(); };
 
 /* ---------------------- início ---------------------- */
 ajustarEscala();
