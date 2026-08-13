@@ -21,7 +21,7 @@
 
   /* ================= placar ================= */
   .placar{
-    width:100%;max-width:940px;display:flex;align-items:stretch;gap:8px;
+    width:100%;display:flex;align-items:stretch;gap:8px;
     background:linear-gradient(180deg,#241A12,#180F0A);
     border:1px solid #3B2A1C;border-radius:11px;padding:7px 10px;
   }
@@ -52,7 +52,7 @@
   .aviso span{font-size:12.5px;color:#B49B7E;line-height:1.35;}
 
   /* ================= barra ================= */
-  .barra{width:100%;max-width:940px;display:flex;align-items:center;gap:7px;}
+  .barra{width:100%;display:flex;align-items:center;gap:7px;}
   button{
     font:inherit;font-size:12px;font-weight:600;color:var(--carne);cursor:pointer;
     background:#2B1E14;border:1px solid #4A3423;border-radius:8px;padding:8px 12px;
@@ -117,23 +117,69 @@
   .menu .fundo{background:center/cover no-repeat;filter:blur(24px) brightness(.5);transform:scale(1.08);}
   .menu .arte{background:center 30%/contain no-repeat;}
   .menu::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;
-    background:linear-gradient(180deg,rgba(7,5,10,0) 40%,rgba(7,5,10,.72) 72%,rgba(7,5,10,.96) 100%);}
+    background:linear-gradient(180deg,rgba(10,7,4,0) 34%,rgba(12,8,5,.68) 68%,rgba(8,5,3,.96) 100%);}
+
+  /* título estêncil, no clima da parede grafitada do fundo */
+  .menu .titulo{
+    position:relative;z-index:2;width:100%;text-align:center;padding:16px 14px 0;
+    pointer-events:none;
+  }
+  .menu .titulo b{
+    display:block;font-size:clamp(26px,6vw,42px);font-weight:800;letter-spacing:.05em;
+    text-transform:uppercase;color:#F2E4CE;
+    text-shadow:0 0 1px #000,2px 0 0 rgba(0,0,0,.5),-2px 0 0 rgba(0,0,0,.5),
+                0 3px 0 rgba(0,0,0,.6),0 8px 18px rgba(0,0,0,.6);
+    -webkit-text-stroke:1.5px rgba(20,14,8,.55);
+  }
+  .menu .titulo span{
+    display:inline-block;margin-top:5px;font-size:10.5px;letter-spacing:.34em;
+    text-transform:uppercase;color:#C7A876;text-shadow:0 2px 4px rgba(0,0,0,.6);
+  }
+
   .cards{position:relative;z-index:2;display:flex;gap:10px;flex-wrap:wrap;
          justify-content:center;padding:0 14px 22px;width:100%;}
   .card{
-    width:132px;min-height:96px;display:flex;flex-direction:column;align-items:center;
-    justify-content:center;gap:5px;padding:11px 8px;border:none;border-radius:13px;
-    color:#fff;font-size:14.5px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;
-    box-shadow:0 5px 0 rgba(0,0,0,.42),0 12px 26px rgba(0,0,0,.5);
+    position:relative;width:132px;min-height:96px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:5px;padding:11px 8px;border:none;
+    border-radius:9px;color:#F2E4CE;font-size:14px;font-weight:800;letter-spacing:.02em;
+    text-transform:uppercase;text-shadow:0 2px 3px rgba(0,0,0,.55);
+    box-shadow:0 5px 0 rgba(0,0,0,.5),0 12px 26px rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.35);
+    background-blend-mode:overlay;
+    background-image:repeating-linear-gradient(115deg,rgba(0,0,0,.16) 0 2px,transparent 2px 7px);
   }
-  .card:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.42);}
-  .card .ico{font-size:27px;line-height:1;}
+  .card:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 0 0 1px rgba(0,0,0,.35);}
+  .card .ico{font-size:26px;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.5));}
   .card em{font-style:normal;font-size:9.5px;font-weight:700;letter-spacing:.1em;opacity:.9;}
-  .card.verde{background:linear-gradient(180deg,#7BE85B,#2E9E1E);text-shadow:0 1px 2px rgba(0,0,0,.35);}
-  .card.azul{background:linear-gradient(180deg,#4E93E8,#1F55B8);}
-  .card.roxo{background:linear-gradient(180deg,#A96AE8,#6A2CB8);}
-  .card.cinza{background:linear-gradient(180deg,#7D858F,#464C55);}
-  .card.laranja{background:linear-gradient(180deg,#F0A83E,#B86A12);}
+
+  /* paleta terrosa: madeira, ferrugem, latão, grama, ferro velho — como na mesa do splash */
+  .card.verde{background-color:#3E7A2E;background-image:linear-gradient(180deg,#5C9A3F,#2E5E1F),
+              repeating-linear-gradient(115deg,rgba(0,0,0,.16) 0 2px,transparent 2px 7px);
+              background-blend-mode:normal,overlay;}
+  .card.madeira{background-color:#8A5A2E;background-image:linear-gradient(180deg,#A97438,#6B4420),
+              repeating-linear-gradient(115deg,rgba(0,0,0,.16) 0 2px,transparent 2px 7px);
+              background-blend-mode:normal,overlay;}
+  .card.ferrugem{background-color:#A15A2C;background-image:linear-gradient(180deg,#C17840,#7A3B18),
+              repeating-linear-gradient(115deg,rgba(0,0,0,.16) 0 2px,transparent 2px 7px);
+              background-blend-mode:normal,overlay;}
+  .card.ferro{background-color:#5B5F66;background-image:linear-gradient(180deg,#787E86,#3A3E44),
+              repeating-linear-gradient(115deg,rgba(0,0,0,.16) 0 2px,transparent 2px 7px);
+              background-blend-mode:normal,overlay;}
+  .card.carvao{background-color:#3A2C20;background-image:linear-gradient(180deg,#4E3B29,#241A11),
+              repeating-linear-gradient(115deg,rgba(0,0,0,.16) 0 2px,transparent 2px 7px);
+              background-blend-mode:normal,overlay;}
+
+  /* card "online" — em breve, com selo estilo carimbo/grafite */
+  .card.online{background-color:#3A3128;background-image:linear-gradient(180deg,#463B30,#221C16),
+              repeating-linear-gradient(115deg,rgba(0,0,0,.18) 0 2px,transparent 2px 7px);
+              background-blend-mode:normal,overlay;color:#B7A489;opacity:.62;cursor:not-allowed;}
+  .card.online .ico{filter:grayscale(.4) drop-shadow(0 2px 2px rgba(0,0,0,.5));}
+  .card.online:active{transform:none;}
+  .selo{
+    position:absolute;top:6px;right:-6px;transform:rotate(11deg);
+    font-size:8px;font-weight:800;letter-spacing:.09em;color:#E8DAC0;
+    border:1.5px dashed rgba(232,218,192,.75);border-radius:5px;padding:2px 5px;
+    background:rgba(0,0,0,.32);text-shadow:none;
+  }
 
   /* --- grades de escolha --- */
   .grade{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;width:100%;max-width:720px;}
@@ -208,12 +254,14 @@
 <div class="tela menu oculta" id="menu">
   <div class="fundo"></div>
   <div class="arte"></div>
+  <div class="titulo"><b>Pregobol</b><span>Respeito · Foco · Diversão</span></div>
   <div class="cards">
     <button class="card verde" id="cardIA"><span class="ico">⚽</span>Jogar<em>Contra a IA</em></button>
-    <button class="card azul" id="card2P"><span class="ico">👥</span>2 Jogadores<em>Mesmo aparelho</em></button>
-    <button class="card roxo" id="cardCampo"><span class="ico">🎨</span>Campo<em>Cores da mesa</em></button>
-    <button class="card laranja" id="cardNivel"><span class="ico">🧠</span>IA<em id="nivelEstado">Forte</em></button>
-    <button class="card cinza" id="cardSom"><span class="ico">🔊</span>Som<em id="somEstado">Ligado</em></button>
+    <button class="card madeira" id="card2P"><span class="ico">👥</span>2 Jogadores<em>Mesmo aparelho</em></button>
+    <button class="card online" id="cardOnline" disabled><span class="selo">Em breve</span><span class="ico">🌐</span>Online<em>Contra outros jogadores</em></button>
+    <button class="card ferrugem" id="cardCampo"><span class="ico">🎨</span>Campo<em>Cores da mesa</em></button>
+    <button class="card ferro" id="cardNivel"><span class="ico">🧠</span>IA<em id="nivelEstado">Forte</em></button>
+    <button class="card carvao" id="cardSom"><span class="ico">🔊</span>Som<em id="somEstado">Ligado</em></button>
   </div>
 </div>
 
@@ -329,10 +377,12 @@ let miraIA = null;                      // linha que mostra a intenção da IA
 function montarPregos() {
   pregos = [];
   const linhas = [
-    { fx:0.055, fys:[0.50] },
-    { fx:0.165, fys:[0.20, 0.40, 0.60, 0.80] },
-    { fx:0.300, fys:[0.30, 0.50, 0.70] },
-    { fx:0.420, fys:[0.24, 0.50, 0.76] }
+    { fx:0.055, fys:[0.50] },                             // goleiro na boca do gol
+    { fx:0.130, fys:[0.32, 0.68] },                        // zaga avançada, nova
+    { fx:0.195, fys:[0.18, 0.40, 0.60, 0.82] },             // zaga
+    { fx:0.300, fys:[0.22, 0.42, 0.62, 0.82] },             // meio (uma linha mais cheia)
+    { fx:0.395, fys:[0.30, 0.50, 0.70] },                   // meio-ataque, nova
+    { fx:0.470, fys:[0.20, 0.50, 0.80] }                    // ataque avançado, perto do meio de campo
   ];
   for (const l of linhas) {
     for (const fy of l.fys) {
@@ -348,7 +398,7 @@ function ajustarEscala() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   const placarH = document.querySelector('.placar').offsetHeight || 54;
   const barraH = document.querySelector('.barra').offsetHeight || 42;
-  const dispW = Math.min(960, window.innerWidth - 14);
+  const dispW = window.innerWidth - 14;
   const dispH = window.innerHeight - placarH - barraH - (window.innerHeight < 480 ? 16 : 30);
   const escala = Math.max(0.25, Math.min(dispW / W, dispH / H));
   cv.style.width = (W * escala) + 'px';
