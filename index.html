@@ -227,7 +227,7 @@
   <button id="btnMenu">☰ Menu</button>
   <button id="btnSom" class="on">🔊 Som</button>
   <button id="btnNovo">↺ Nova partida</button>
-  <div class="dica">3 petelecos por vez — o gol só vale no 3º. Puxe a moeda e solte.</div>
+  <div class="dica">Puxe a moeda e solte — o gol vale já no primeiro toque.</div>
 </div>
 
 <!-- ===================== abertura ===================== -->
@@ -365,7 +365,7 @@ let pregos = [];
 let jogador = 1;                        // 1 ataca à direita | 2 ataca à esquerda
 let placar = { 1:0, 2:0 };
 let peteleco = 0;                       // quantos petelecos já dados no turno (0..3)
-const PETELECOS = 3;                    // só o 3º peteleco pode marcar gol
+const PETELECOS = 1;                    // um toque só: o gol já vale no 1º peteleco
 let fase = 'mirando';                   // mirando | rolando | pausa | fim | ia
 let mira = null;
 let tremor = 0, brilhoGol = 0;
@@ -550,7 +550,7 @@ function passo() {
   if (fase !== 'rolando') return;
   const r = passoFisico(bola, false);
   if (r) {
-    if (peteleco >= PETELECOS) { registrarGol(r); }  // só vale no 3º peteleco
+    if (peteleco >= PETELECOS) { registrarGol(r); }  // vale já no 1º toque
     else { golCedoDemais(r); }                        // entrou antes da hora: não conta
     return;
   }
@@ -761,9 +761,13 @@ function atualizarHUD() {
   else if (fase === 'ia') { elQuem.textContent = 'IA pensando…'; elQuem.className = 'quem pensando'; }
   else {
     const nome = (modo === 'ia' && jogador === 2) ? clube(2).nome : clube(jogador).nome;
-    const nDisparo = Math.min(peteleco + 1, PETELECOS);   // peteleco que está por vir
-    elQuem.innerHTML = `${nome}<br><span class="serie">Peteleco ${nDisparo} de ${PETELECOS}` +
-                       `${nDisparo === PETELECOS ? ' · vale gol!' : ''}</span>`;
+    if (PETELECOS <= 1) {
+      elQuem.innerHTML = `${nome}<br><span class="serie">Sua vez · vale gol!</span>`;
+    } else {
+      const nDisparo = Math.min(peteleco + 1, PETELECOS);   // peteleco que está por vir
+      elQuem.innerHTML = `${nome}<br><span class="serie">Peteleco ${nDisparo} de ${PETELECOS}` +
+                         `${nDisparo === PETELECOS ? ' · vale gol!' : ''}</span>`;
+    }
     elQuem.className = 'quem';
   }
 }
