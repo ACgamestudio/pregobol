@@ -400,18 +400,20 @@ function ajustarEscala() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   const placarH = document.querySelector('.placar').offsetHeight || 54;
   const barraH = document.querySelector('.barra').offsetHeight || 42;
-  // ocupa 100% da largura da tela (sem margens laterais)
-  const dispW = window.innerWidth;
-  const dispH = window.innerHeight - placarH - barraH - (window.innerHeight < 480 ? 12 : 24);
-  // escala horizontal e vertical independentes: X sempre preenche a tela toda,
-  // Y usa no máximo a mesma escala para não passar da altura disponível.
-  const escX = dispW / W;
-  const escY = Math.min(escX, dispH / H);
-  cv.style.width = (W * escX) + 'px';
-  cv.style.height = (H * escY) + 'px';
-  cv.width = Math.round(W * escX * dpr);
-  cv.height = Math.round(H * escY * dpr);
-  ctx.setTransform(escX * dpr, 0, 0, escY * dpr, 0, 0);
+  const margem = window.innerHeight < 480 ? 12 : 24;
+  // espaço disponível (com uma pequena folga lateral para a mesa não colar nas bordas)
+  const dispW = window.innerWidth - (window.innerWidth < 480 ? 0 : 20);
+  const dispH = window.innerHeight - placarH - barraH - margem;
+  // UMA escala só, igual nos dois eixos: mantém a proporção real 780×470
+  // (mesa "normal", sem esticar). Cabe na largura E na altura disponíveis.
+  let esc = Math.min(dispW / W, dispH / H);
+  // teto de tamanho: em telas grandes a mesa não fica gigante
+  esc = Math.min(esc, 1.15);
+  cv.style.width = (W * esc) + 'px';
+  cv.style.height = (H * esc) + 'px';
+  cv.width = Math.round(W * esc * dpr);
+  cv.height = Math.round(H * esc * dpr);
+  ctx.setTransform(esc * dpr, 0, 0, esc * dpr, 0, 0);
   checarOrientacao();
 }
 window.addEventListener('resize', () => setTimeout(ajustarEscala, 60));
@@ -720,10 +722,12 @@ function fimDoToque() {
     if (modo === 'ia' && jogador === 2) talvezIA();
     return;
   }
-  // acabou a série de 3 petelecos sem gol: passa a vez
+  // acabou a série de petelecos sem gol: passa a vez.
+  // A bola FICA onde o jogador anterior a deixou — o próximo joga a partir
+  // daquela posição (só zeramos a velocidade, sem recolocar no meio).
   jogador = jogador === 1 ? 2 : 1;
   peteleco = 0;
-  bola.x = CX; bola.y = CY; bola.vx = bola.vy = 0;   // recomeça do meio para o próximo
+  bola.vx = bola.vy = 0;
   fase = 'mirando';
   Som.apito(false);
   atualizarHUD();
