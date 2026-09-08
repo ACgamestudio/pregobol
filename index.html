@@ -53,6 +53,108 @@
   .aviso b{display:block;font-size:24px;margin-bottom:3px;}
   .aviso span{font-size:12.5px;color:#B49B7E;line-height:1.35;}
 
+  /* ============ escudos ao lado da mesa ============
+     O recorte sai da própria arte assets/times.png (ver estiloEscudo no JS),
+     então não entra nenhum arquivo novo no jogo. */
+  .board-wrap{--ladoW:0px;}
+  .lado{
+    position:absolute;top:50%;transform:translateY(-50%);width:var(--ladoW);
+    display:flex;flex-direction:column;align-items:center;gap:7px;
+    pointer-events:none;user-select:none;
+  }
+  .lado.esq{left:0;}
+  .lado.dir{right:0;}
+  .escudo{
+    width:100%;border-radius:12px;background-repeat:no-repeat;
+    border:1px solid #4A3423;box-shadow:0 10px 24px rgba(0,0,0,.55);
+    transition:box-shadow .25s,filter .25s,transform .25s;
+  }
+  .ladoNome{
+    font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8C755C;
+    text-align:center;line-height:1.25;transition:color .25s;
+  }
+  .lado.ativo .escudo{
+    transform:translateY(-2px);
+    box-shadow:0 0 0 2px rgba(255,210,74,.85),0 0 26px rgba(255,210,74,.30),
+               0 10px 24px rgba(0,0,0,.55);
+  }
+  .lado.ativo .ladoNome{color:var(--carne);}
+  .lado.perdeu .escudo{filter:grayscale(.85) brightness(.5);}
+  .lado.venceu .escudo{
+    box-shadow:0 0 0 2px rgba(255,210,74,.95),0 0 34px rgba(255,210,74,.45);
+    animation:pulsaEscudo 1.5s ease-in-out infinite;
+  }
+  .lado.venceu .ladoNome{color:#FFD24A;}
+  @keyframes pulsaEscudo{0%,100%{transform:scale(1);}50%{transform:scale(1.05);}}
+  body.semLados .lado{display:none;}   /* tela estreita: a mesa vem primeiro */
+
+  /* ============ festa do campeão ============ */
+  .campeao{
+    position:absolute;inset:0;z-index:6;display:none;overflow:hidden;border-radius:9px;
+    flex-direction:column;align-items:center;justify-content:center;gap:5px;
+    pointer-events:none;
+    background:radial-gradient(62% 78% at 50% 44%,rgba(12,9,6,.5),rgba(9,7,5,.93));
+  }
+  .campeao.on{display:flex;}
+  .raios{
+    position:absolute;left:50%;top:44%;width:170%;aspect-ratio:1;
+    transform:translate(-50%,-50%);
+    background:conic-gradient(from 0deg,rgba(255,210,74,.22) 0 5deg,transparent 5deg 18deg);
+    -webkit-mask:radial-gradient(closest-side,#000 26%,transparent 76%);
+            mask:radial-gradient(closest-side,#000 26%,transparent 76%);
+    animation:girarRaios 16s linear infinite;
+  }
+  @keyframes girarRaios{to{transform:translate(-50%,-50%) rotate(360deg);}}
+
+  .tacaEscudo{
+    position:relative;z-index:2;width:min(40%,215px);border-radius:14px;
+    background-repeat:no-repeat;
+    box-shadow:0 0 0 2px rgba(255,210,74,.9),0 0 48px rgba(255,210,74,.5),
+               0 18px 40px rgba(0,0,0,.6);
+    animation:entraEscudo .7s cubic-bezier(.2,1.55,.4,1) both,
+              flutua 2.8s .7s ease-in-out infinite;
+  }
+  @keyframes entraEscudo{
+    from{opacity:0;transform:scale(.15) rotate(-18deg);}
+    to  {opacity:1;transform:scale(1) rotate(0);}}
+  @keyframes flutua{
+    0%,100%{transform:translateY(0) rotate(-1.4deg);}
+    50%    {transform:translateY(-8px) rotate(1.4deg);}}
+
+  .campeao .faixa{
+    position:relative;z-index:2;margin-top:8px;
+    font-size:clamp(14px,3.2vw,28px);font-weight:800;letter-spacing:.24em;
+    text-transform:uppercase;
+    background:linear-gradient(180deg,#FFF3CB,#FFC93C 55%,#C1830D);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:sobeTexto .45s .3s both;
+  }
+  .campeao .nomeCampeao{
+    position:relative;z-index:2;font-size:clamp(12px,2.1vw,17px);font-weight:700;
+    color:var(--carne);animation:sobeTexto .45s .42s both;
+  }
+  .campeao .placarFinal{
+    position:relative;z-index:2;font-size:11.5px;color:#B49B7E;text-align:center;
+    padding:0 12px;animation:sobeTexto .45s .54s both;
+  }
+  @keyframes sobeTexto{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+
+  .confetes{position:absolute;inset:0;z-index:3;overflow:hidden;}
+  .confete{
+    position:absolute;top:-24px;border-radius:2px;opacity:0;
+    animation-name:cai;animation-timing-function:linear;animation-iteration-count:infinite;
+  }
+  @keyframes cai{
+    0%  {opacity:0;transform:translateY(0) rotate(0);}
+    7%  {opacity:1;}
+    88% {opacity:1;}
+    100%{opacity:0;transform:translateY(var(--dist)) rotate(var(--giro));}}
+
+  @media (prefers-reduced-motion:reduce){
+    .raios,.confete,.tacaEscudo,.lado.venceu .escudo{animation:none;}
+    .tacaEscudo{opacity:1;}
+  }
+
   /* ================= barra ================= */
   .barra{width:calc(100% - 14px);display:flex;align-items:center;gap:7px;}
   button{
@@ -267,8 +369,28 @@
 </div>
 
 <div class="board-wrap">
+  <div class="lado esq" id="ladoA">
+    <div class="escudo" id="escudoA"></div>
+    <div class="ladoNome" id="ladoNomeA"></div>
+  </div>
+
   <canvas id="cv"></canvas>
+
+  <div class="lado dir" id="ladoB">
+    <div class="escudo" id="escudoB"></div>
+    <div class="ladoNome" id="ladoNomeB"></div>
+  </div>
+
   <div class="aviso" id="aviso"><b></b><span></span></div>
+
+  <div class="campeao" id="campeao">
+    <div class="raios"></div>
+    <div class="confetes" id="confetes"></div>
+    <div class="tacaEscudo" id="tacaEscudo"></div>
+    <div class="faixa">Campeão</div>
+    <div class="nomeCampeao" id="nomeCampeao"></div>
+    <div class="placarFinal" id="placarFinal"></div>
+  </div>
 </div>
 
 <div class="barra">
@@ -359,6 +481,7 @@ const ALVO_GOLS = 3;
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
+const wrap = document.querySelector('.board-wrap');
 
 /* ---------------------- clubes ----------------------
    Os nomes e os escudos vêm da arte assets/times.png. Aqui ficam só as cores
@@ -405,7 +528,9 @@ const CAMPOS = {
 const ORDEM_CAMPOS = Object.keys(CAMPOS);
 
 /* ---------------------- estado ---------------------- */
-let times = { 1:'martelo', 2:'prego' };
+/* Estes dois têm de ser chaves reais de CLUBES: novaPartida() roda antes de
+   qualquer escolha e, se a chave não existir, o laço de desenho nem começa. */
+let times = { 1:'rubronegro', 2:'estrela' };
 let campoAtual = 'classico';
 let modo = 'ia';                        // 'ia' | '2p'
 /* A janela de acerto de uma tabela é de cerca de 2 graus, então o erro
@@ -417,7 +542,7 @@ const NIVEIS = {
 };
 const ORDEM_NIVEIS = ['facil','medio','forte'];
 let nivel = 'forte';
-const clube = n => CLUBES[times[n]];
+const clube = n => CLUBES[times[n]] || CLUBES[ORDEM_CLUBES[n === 1 ? 0 : 1]];
 const mesa = () => CAMPOS[campoAtual];
 
 const bola = { x: CX, y: CY, vx: 0, vy: 0 };
@@ -474,6 +599,18 @@ function ajustarEscala() {
   cv.width = Math.round(W * esc * dpr);
   cv.height = Math.round(H * esc * dpr);
   ctx.setTransform(esc * dpr, 0, 0, esc * dpr, 0, 0);
+
+  /* Os escudos ficam na sobra que existe dos lados da mesa. Eles são
+     posicionados por cima do .board-wrap, então nunca roubam espaço do campo:
+     se a sobra for pequena demais, simplesmente somem. */
+  const sobra = (wrap.clientWidth - W * esc) / 2;
+  const cabe = sobra >= 88;
+  document.body.classList.toggle('semLados', !cabe);
+  if (cabe) {
+    const lw = Math.min(sobra - 16, H * esc * .70, 200);
+    wrap.style.setProperty('--ladoW', Math.round(lw) + 'px');
+  }
+
   checarOrientacao();
 }
 window.addEventListener('resize', () => setTimeout(ajustarEscala, 60));
@@ -555,7 +692,28 @@ const Som = (() => {
     o.connect(g); o2.connect(g); g.connect(a.destination);
     o.start(t); o2.start(t); o.stop(t + dur); o2.stop(t + dur);
   }
-  return { peteleco, prego, madeira, gol, apito, ligar,
+  function fanfarra() {                        // arpejo de vitória + arquibancada
+    if (!ligado) return; const a = ligar(), t = a.currentTime;
+    const notas = [392, 523, 659, 784, 1047, 784, 1047];
+    notas.forEach((f, i) => {
+      const ini = t + i * .135, ultima = i === notas.length - 1;
+      const dur = ultima ? 1.15 : .34;
+      [[1, 'sawtooth', .09], [2, 'triangle', .045]].forEach(([m, tipo, vol]) => {
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = tipo; o.frequency.value = f * m;
+        g.gain.setValueAtTime(0, ini); g.gain.linearRampToValueAtTime(vol, ini + .03);
+        g.gain.exponentialRampToValueAtTime(.0008, ini + dur);
+        o.connect(g); g.connect(a.destination); o.start(ini); o.stop(ini + dur + .04);
+      });
+    });
+    const s = ruido(2.6), bp = a.createBiquadFilter(), g = a.createGain();
+    bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = .6;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.13, t + .45);
+    g.gain.linearRampToValueAtTime(0, t + 2.5);
+    s.connect(bp); bp.connect(g); g.connect(a.destination); s.start(t); s.stop(t + 2.6);
+  }
+
+  return { peteleco, prego, madeira, gol, apito, fanfarra, ligar,
            alternar: () => (ligado = !ligado), get ligado() { return ligado; } };
 })();
 
@@ -748,7 +906,7 @@ function novaPartida() {
   placar = { 1:0, 2:0 };
   jogador = 1; peteleco = 0; fase = 'mirando';
   bola.x = CX; bola.y = CY; bola.vx = bola.vy = 0;
-  montarPregos(); esconderAviso(); atualizarHUD();
+  montarPregos(); esconderAviso(); encerrarFesta(); atualizarHUD();
 }
 
 function recomecarDoMeio(quemComeca) {
@@ -766,8 +924,7 @@ function registrarGol(dono) {
   if (placar[dono] >= ALVO_GOLS) {
     fase = 'fim';
     setTimeout(() => Som.apito(true), 900);
-    mostrarAviso(`${clube(dono).nome} venceu!`,
-      `${clube(1).nome} ${placar[1]} × ${placar[2]} ${clube(2).nome} · toque em "Nova partida"`, 0);
+    setTimeout(() => { Som.fanfarra(); celebrar(dono); }, 1250);
     atualizarHUD();
     return;
   }
@@ -798,6 +955,33 @@ function fimDoToque() {
 const elGolsA = document.getElementById('golsA'), elGolsB = document.getElementById('golsB');
 const elTimeA = document.getElementById('timeA'), elTimeB = document.getElementById('timeB');
 const elAviso = document.getElementById('aviso'), elQuem = document.getElementById('quemJoga');
+const elLadoA = document.getElementById('ladoA'), elLadoB = document.getElementById('ladoB');
+const elEscudoA = document.getElementById('escudoA'), elEscudoB = document.getElementById('escudoB');
+const elLadoNomeA = document.getElementById('ladoNomeA'), elLadoNomeB = document.getElementById('ladoNomeB');
+const elCampeao = document.getElementById('campeao'), elConfetes = document.getElementById('confetes');
+
+/* ---------------------- escudo recortado da arte ----------------------
+   Cada time já tem sua célula em AREAS (é o mesmo retângulo do botão na tela
+   de escolha). Aqui a célula é cortada em cima e embaixo para sobrar só o
+   escudo, sem a faixa do nome, e vira um background posicionado. */
+const CORTE_TOPO = 1.5, CORTE_BASE = 22;      // % da altura da célula
+function estiloEscudo(chave) {
+  const i = ORDEM_CLUBES.indexOf(chave);
+  if (i < 0) return '';
+  const a = AREAS[i];
+  const t = a.t + a.h * CORTE_TOPO / 100;                      // topo do recorte, em % da arte
+  const h = a.h * (100 - CORTE_TOPO - CORTE_BASE) / 100;       // altura do recorte, em % da arte
+  return `aspect-ratio:${(a.w * 1586).toFixed(1)}/${(h * 992).toFixed(1)};` +
+         `background-image:url('assets/times.png');` +
+         `background-size:${(10000 / a.w).toFixed(3)}% ${(10000 / h).toFixed(3)}%;` +
+         `background-position:${(a.l / (100 - a.w) * 100).toFixed(3)}% ` +
+                             `${(t / (100 - h) * 100).toFixed(3)}%;`;
+}
+function pintarEscudo(el, chave) {
+  if (el.dataset.time === chave) return;       // só repinta quando o time muda
+  el.style.cssText = estiloEscudo(chave);
+  el.dataset.time = chave;
+}
 
 function fundoCamisa(cl) {
   switch (cl.padrao) {
@@ -821,6 +1005,14 @@ function atualizarHUD() {
   elGolsA.textContent = placar[1]; elGolsB.textContent = placar[2];
   elTimeA.classList.toggle('ativo', jogador === 1 && fase !== 'fim');
   elTimeB.classList.toggle('ativo', jogador === 2 && fase !== 'fim');
+
+  // escudos ao lado da mesa
+  pintarEscudo(elEscudoA, times[1]);
+  pintarEscudo(elEscudoB, times[2]);
+  elLadoNomeA.textContent = cA.nome;
+  elLadoNomeB.textContent = cB.nome;
+  elLadoA.classList.toggle('ativo', jogador === 1 && fase !== 'fim');
+  elLadoB.classList.toggle('ativo', jogador === 2 && fase !== 'fim');
 
   if (fase === 'fim') { elQuem.textContent = 'Fim'; elQuem.className = 'quem'; }
   else if (fase === 'ia') { elQuem.textContent = 'IA pensando…'; elQuem.className = 'quem pensando'; }
@@ -846,6 +1038,52 @@ function mostrarAviso(t, s, ms = 1400) {
   if (ms) timerAviso = setTimeout(esconderAviso, ms);
 }
 function esconderAviso() { elAviso.classList.remove('show'); }
+
+/* ---------------------- festa do campeão ---------------------- */
+function soltarConfete(cl) {
+  elConfetes.innerHTML = '';
+  const cores = [cl.c1, cl.c2, cl.c3 || '#FFD24A', '#FFD24A', '#FFF6DC'];
+  const queda = wrap.clientHeight + 60;
+  for (let i = 0; i < 44; i++) {
+    const p = document.createElement('i');
+    p.className = 'confete';
+    p.style.cssText =
+      `left:${(Math.random() * 100).toFixed(1)}%;` +
+      `width:${(4 + Math.random() * 4).toFixed(0)}px;` +
+      `height:${(8 + Math.random() * 7).toFixed(0)}px;` +
+      `background:${cores[i % cores.length]};` +
+      `animation-duration:${(2.1 + Math.random() * 2.3).toFixed(2)}s;` +
+      `animation-delay:${(Math.random() * 2.6).toFixed(2)}s;` +
+      `--dist:${queda}px;--giro:${(Math.random() * 1000 - 500).toFixed(0)}deg;`;
+    elConfetes.appendChild(p);
+  }
+}
+
+function celebrar(dono) {
+  const cl = clube(dono);
+  esconderAviso();
+  document.getElementById('tacaEscudo').style.cssText = estiloEscudo(times[dono]);
+  document.getElementById('nomeCampeao').textContent = cl.nome;
+  document.getElementById('placarFinal').textContent =
+    `${clube(1).nome} ${placar[1]} × ${placar[2]} ${clube(2).nome} · toque em "Nova partida"`;
+  soltarConfete(cl);
+
+  elCampeao.classList.remove('on');
+  void elCampeao.offsetWidth;              // força o reinício das animações
+  elCampeao.classList.add('on');
+
+  elLadoA.classList.toggle('venceu', dono === 1);
+  elLadoB.classList.toggle('venceu', dono === 2);
+  elLadoA.classList.toggle('perdeu', dono !== 1);
+  elLadoB.classList.toggle('perdeu', dono !== 2);
+}
+
+function encerrarFesta() {
+  elCampeao.classList.remove('on');
+  elConfetes.innerHTML = '';
+  elLadoA.classList.remove('venceu', 'perdeu');
+  elLadoB.classList.remove('venceu', 'perdeu');
+}
 
 /* ---------------------- peteleco do jogador ---------------------- */
 function posNoCanvas(ev) {
@@ -1267,6 +1505,7 @@ document.getElementById('btnIniciar').onclick = iniciar;
 /* ---- menu ---- */
 function abrirMenu() {
   document.body.classList.remove('jogando');
+  encerrarFesta();
   telaTimes.classList.add('oculta'); telaCampo.classList.add('oculta');
   menu.classList.remove('oculta');
   document.getElementById('somEstado').textContent = Som.ligado ? 'Ligado' : 'Desligado';
