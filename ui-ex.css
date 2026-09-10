@@ -1,0 +1,194 @@
+/* =======================================================================
+   PREGOBOL — styles for what was added
+   The original stylesheet is untouched and still lives inline in
+   index.html. This file only ADDS: the backdrops behind the table, the
+   richer selection lists, the special-shot bar and the results card.
+   Everything here reuses the existing palette so the game still looks
+   like itself.
+   ======================================================================= */
+:root{
+  --arcade:"Arial Narrow","Haettenschweiler",Impact,ui-sans-serif,system-ui,sans-serif;
+  --ouro:#FFD24A;
+  --brasa:#EC5648;
+}
+
+/* the table, the scoreboard and the bar sit above the backdrop */
+.placar,.board-wrap,.barra{position:relative;z-index:2;}
+
+/* ================= backdrops (spec §3, §12) =================
+   Atmosphere from gradients only — no new image files, nothing to load. */
+.cenario{
+  position:fixed;inset:0;z-index:0;opacity:0;pointer-events:none;
+  transition:opacity .6s ease;
+}
+body.jogando .cenario{opacity:1;}
+
+/* RIO STREET — dusk over the hills, blocks of flats along the base */
+.cena-rio{
+  background:
+    linear-gradient(180deg,#1B1120 0%,#4A2A2A 38%,#8A4A2C 62%,#20140E 100%),
+    radial-gradient(60% 40% at 20% 74%,#0E0A08 40%,transparent 41%);
+}
+.cena-rio::before{
+  content:"";position:absolute;inset:auto 0 0 0;height:34%;
+  background:
+    repeating-linear-gradient(90deg,#0C0908 0 22px,transparent 22px 30px,#0C0908 30px 44px,transparent 44px 58px),
+    linear-gradient(180deg,transparent,#0C0908 62%);
+  mask-image:linear-gradient(180deg,transparent,#000 45%);
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 45%);
+}
+.cena-rio::after{
+  content:"";position:absolute;left:-10%;right:-10%;bottom:22%;height:26%;
+  background:radial-gradient(50% 100% at 30% 100%,#120D0B 60%,transparent 61%),
+             radial-gradient(46% 100% at 68% 100%,#161010 60%,transparent 61%);
+}
+
+/* BEACH — sea, low sun, wet sand */
+.cena-praia{
+  background:
+    linear-gradient(180deg,#3E5E86 0%,#7FA6C4 34%,#E4C58B 56%,#B9945B 100%),
+    radial-gradient(20% 14% at 74% 30%,rgba(255,236,180,.95),transparent 60%);
+}
+.cena-praia::after{
+  content:"";position:absolute;inset:44% 0 0 0;
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.10) 0 2px,transparent 2px 12px);
+}
+
+/* STADIUM — night, four floodlights, a wall of stands */
+.cena-estadio{
+  background:
+    radial-gradient(30% 22% at 16% 8%,rgba(255,250,220,.30),transparent 60%),
+    radial-gradient(30% 22% at 84% 8%,rgba(255,250,220,.30),transparent 60%),
+    linear-gradient(180deg,#08131A 0%,#0C2029 55%,#050C10 100%);
+}
+.cena-estadio::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:40%;
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.045) 0 3px,transparent 3px 9px);
+}
+
+/* RAIN — wet street, streaks falling */
+.cena-chuva{background:linear-gradient(180deg,#101820 0%,#1B2732 50%,#0A1014 100%);}
+.cena-chuva::after{
+  content:"";position:absolute;inset:-40% -10% -10% -10%;
+  background:repeating-linear-gradient(78deg,rgba(200,225,245,.16) 0 1px,transparent 1px 9px);
+  animation:chove 620ms linear infinite;
+}
+@keyframes chove{from{transform:translate3d(0,-9px,0);}to{transform:translate3d(-2px,9px,0);}}
+
+/* ICE — pale sky, cold light */
+.cena-gelo{
+  background:
+    radial-gradient(60% 40% at 50% 0%,rgba(255,255,255,.35),transparent 70%),
+    linear-gradient(180deg,#93B7CE 0%,#C9E2EE 46%,#7C9DB2 100%);
+}
+
+/* FAVELA — houses stacked up the hillside */
+.cena-favela{background:linear-gradient(180deg,#2A1418 0%,#5A2420 46%,#150A0A 100%);}
+.cena-favela::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:56%;
+  background:
+    repeating-linear-gradient(90deg,#170C0C 0 26px,rgba(255,190,120,.10) 26px 30px,#1E1010 30px 52px,transparent 52px 58px),
+    repeating-linear-gradient(180deg,#1A0E0E 0 28px,rgba(0,0,0,.5) 28px 32px);
+  mask-image:linear-gradient(180deg,transparent,#000 38%);
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 38%);
+}
+
+/* EXTREME — arcade neon */
+.cena-extremo{
+  background:
+    radial-gradient(50% 40% at 50% 100%,rgba(196,84,255,.30),transparent 70%),
+    linear-gradient(180deg,#150A22 0%,#2A0F3E 60%,#08040E 100%);
+}
+.cena-extremo::after{
+  content:"";position:absolute;inset:0;
+  background:
+    repeating-linear-gradient(90deg,rgba(255,120,240,.10) 0 1px,transparent 1px 46px),
+    repeating-linear-gradient(180deg,rgba(120,220,255,.08) 0 1px,transparent 1px 46px);
+}
+
+@media (prefers-reduced-motion:reduce){
+  .cena-chuva::after{animation:none;}
+}
+
+/* ================= scoreboard extras ================= */
+.rotuloModo{
+  display:block;font-family:var(--arcade);font-size:9px;font-weight:700;
+  letter-spacing:.18em;color:var(--ouro);text-transform:uppercase;min-height:.9em;
+}
+
+/* ================= special shot bar (spec §6) ================= */
+.especiais{display:flex;align-items:center;gap:5px;}
+.especiais button{
+  width:34px;height:32px;padding:0;font-size:14px;line-height:1;
+  display:grid;place-items:center;opacity:.4;filter:grayscale(1);
+  transition:opacity .15s,filter .15s,box-shadow .15s,transform .12s;
+}
+.especiais button.pode{opacity:1;filter:none;}
+.especiais button.armado{
+  border-color:var(--ouro);box-shadow:0 0 0 1px var(--ouro),0 0 14px rgba(255,210,74,.5);
+}
+.cargasCaixa{
+  display:flex;align-items:baseline;gap:4px;font-family:var(--arcade);
+  font-size:11px;letter-spacing:.12em;color:#9C8468;text-transform:uppercase;
+}
+.cargasCaixa b{font-size:17px;color:var(--ouro);font-variant-numeric:tabular-nums;}
+@media (max-height:480px){
+  .especiais button{width:29px;height:27px;font-size:12px;}
+}
+
+/* ================= selection lists ================= */
+.tela h2{font-family:var(--arcade);letter-spacing:.10em;text-transform:uppercase;}
+.grade.lista{grid-template-columns:repeat(2,1fr);max-width:760px;}
+@media (max-width:640px){ .grade.lista{grid-template-columns:1fr;} }
+
+.op.campo,.op.tampa,.op.desafio{
+  flex-direction:row;align-items:center;gap:10px;text-align:left;padding:10px;
+  position:relative;
+}
+.op .txt{display:flex;flex-direction:column;gap:2px;min-width:0;}
+.op .txt b{font-family:var(--arcade);font-size:15px;letter-spacing:.06em;text-transform:uppercase;}
+.op .txt i{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.10em;
+           color:var(--ouro);text-transform:uppercase;}
+.op .txt u{text-decoration:none;font-size:10.5px;font-weight:500;color:#9C8468;line-height:1.35;}
+.op.on{border-color:#7A583A;background:#31241A;box-shadow:inset 0 0 0 1px rgba(255,210,74,.35);}
+.op.travado{opacity:.34;}
+.op.campo .mini{width:64px;height:42px;flex:none;}
+.op.tampa .arteTampa{width:52px;height:52px;flex:none;}
+.op.tampa .arteTampa canvas{width:100%;height:100%;}
+.op.desafio.feito{border-color:#3F6B3A;}
+.op .selo{position:absolute;right:8px;top:8px;margin:0;transform:none;
+          font-size:11px;color:#8CF06A;border-color:rgba(140,240,106,.6);}
+
+/* ================= results card (spec §10) ================= */
+.fim{z-index:55;background:rgba(6,4,3,.86);backdrop-filter:blur(3px);}
+.cartaz{
+  width:min(560px,100%);background:linear-gradient(180deg,#241A12,#150E09);
+  border:1px solid #4A3423;border-radius:14px;padding:18px 18px 16px;
+  box-shadow:0 24px 60px rgba(0,0,0,.7);text-align:center;
+}
+.cartaz h2{font-size:clamp(24px,6vw,40px);color:var(--ouro);
+           text-shadow:0 2px 0 rgba(0,0,0,.6);}
+.cartaz .sub{margin-top:2px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#C6AE8E;}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 6px;}
+.stats .col{background:rgba(0,0,0,.28);border:1px solid #3B2A1C;border-radius:10px;padding:9px 10px;}
+.stats .col b{display:block;font-family:var(--arcade);font-size:12px;letter-spacing:.14em;
+              color:var(--carne);text-transform:uppercase;margin-bottom:6px;}
+.stats .col span{display:flex;justify-content:space-between;gap:8px;
+                 font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#9C8468;
+                 padding:2px 0;}
+.stats .col i{font-style:normal;font-weight:800;color:var(--carne);font-variant-numeric:tabular-nums;}
+#fimPremio{display:flex;flex-direction:column;gap:4px;margin:4px 0 10px;}
+#fimPremio span{font-family:var(--arcade);font-size:12px;letter-spacing:.12em;
+                text-transform:uppercase;color:#8CF06A;}
+.cartaz .botoes{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+.cartaz .botoes button{font-family:var(--arcade);font-size:14px;letter-spacing:.12em;
+                       text-transform:uppercase;padding:10px 18px;}
+#fimAcao{background:#4A3423;border-color:#7A583A;color:#FFF6DC;}
+.cartaz .secundario{background:none;border-color:#3B2A1C;color:#9C8468;}
+
+/* ================= menu with more options ================= */
+@media (max-height:600px){
+  .cards{display:grid;grid-template-columns:1fr 1fr;column-gap:5vw;row-gap:2px;align-items:end;}
+  .card{font-size:clamp(13px,2.8vw,22px);}
+}
+.card.idioma em{color:#9CE08A;}
