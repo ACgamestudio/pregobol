@@ -228,3 +228,38 @@ body.jogando .cenario{opacity:1;}
 #btnFaixa{ min-width:42px; padding-left:10px; padding-right:10px; }
 #btnFaixa.pulsa{ transform:scale(1.18); border-color:var(--ouro); }
 #btnFaixa{ transition:transform .18s ease, border-color .18s ease; }
+
+/* ===================================================================
+   End of match: the panel drops to the bottom so the winning club's
+   crest stays visible in the middle of the table behind it. The
+   backdrop is a gradient rather than a flat wash for the same reason —
+   opaque at the panel, clear over the crest.
+   =================================================================== */
+.tela.fim{
+  justify-content:flex-end;
+  background:linear-gradient(to bottom,
+    rgba(6,4,3,0) 0%, rgba(6,4,3,.10) 38%,
+    rgba(6,4,3,.62) 64%, rgba(6,4,3,.93) 100%);
+  backdrop-filter:none;
+  pointer-events:none;                  /* clicks pass through to the crest area */
+}
+.tela.fim .cartaz{
+  pointer-events:auto;                  /* …but the panel itself stays usable */
+  width:min(560px,100%);
+  padding:14px 16px 14px;
+  background:linear-gradient(180deg,rgba(36,26,18,.97),rgba(21,14,9,.99));
+  box-shadow:0 -14px 46px rgba(0,0,0,.72);
+}
+.tela.fim .cartaz h2{ font-size:clamp(20px,4.6vw,32px); }
+.tela.fim .stats{ margin:10px 0 4px; gap:8px; }
+.tela.fim .stats .col{ padding:7px 9px; }
+
+/* the champion overlay has to sit above the board but below the panel */
+.campeao{ z-index:6; }
+
+/* short screens: keep the crest breathing room by tightening the panel */
+@media (max-height:620px){
+  .tela.fim .cartaz{ padding:10px 14px; }
+  .tela.fim .stats{ margin:7px 0 3px; }
+  .tela.fim .cartaz .sub{ font-size:11px; }
+}

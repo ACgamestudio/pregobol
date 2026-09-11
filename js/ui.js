@@ -234,8 +234,11 @@ function fecharTelas() {
 /* Single entry point for starting anything. */
 function comecarPartida(cfg) {
   fecharTelas();
+  if (Modo.tipo === 'arcade') sortearAdversario();
   novaPartida(cfg);
   iniciarTrilha(true);
+  if (Modo.tipo === 'arcade')
+    mostrarAviso(t('nextOpponent'), CLUBES[times[2]].nome, 1800);
 }
 
 /* ---- main menu (spec §14) ---- */
@@ -267,6 +270,12 @@ ligarCard('cardTorneio', () => {
 ligarCard('cardDesafios', abrirDesafios);
 ligarCard('cardCampo', () => abrirCampos(false, null));
 ligarCard('cardTampa', abrirTampas);
+ligarCard('cardMira', () => {
+  mostrarMira = !mostrarMira;
+  Progresso.dados.mira = mostrarMira;
+  Progresso.salvar();
+  aplicarIdioma();
+});
 ligarCard('cardNivel', () => {
   nivel = ORDEM_NIVEIS[(ORDEM_NIVEIS.indexOf(nivel) + 1) % ORDEM_NIVEIS.length];
   Progresso.lembrar('nivel', nivel);
@@ -290,6 +299,27 @@ ligarCard('cardIdioma', () => {
 
 /* ---- team select: unchanged artwork, unchanged hotspots ---- */
 let escolhendo = 1;
+
+/* Arcade is a campaign: you pick YOUR club once and the ladder throws
+   opponents at you. Choosing both sides would make it a friendly. */
+function soMeuTime() { return Modo.tipo === 'arcade'; }
+
+/* A bag, not a dice roll: every other club turns up exactly once before
+   any of them turns up twice. Over a seven-rung ladder with seven rivals
+   that means you face each of them once, in a different order each run. */
+let sacola = [];
+function encherSacola() {
+  sacola = ORDEM_CLUBES.filter(c => c !== times[1]);
+  for (let i = sacola.length - 1; i > 0; i--) {          // Fisher-Yates
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = sacola[i]; sacola[i] = sacola[j]; sacola[j] = tmp;
+  }
+}
+function sortearAdversario() {
+  if (!sacola.length) encherSacola();
+  times[2] = sacola.pop();
+  return times[2];
+}
 function montarGradeTimes() {
   gradeTimes.innerHTML = '';
   ORDEM_CLUBES.forEach((chave, i) => {
@@ -311,6 +341,7 @@ function montarGradeTimes() {
 
 function abrirTimes() {
   escolhendo = 1;
+  if (subTimes) subTimes.innerHTML = `<b>${soMeuTime() ? t('yourTeam') : t('player1')}</b>`;
   telaTimes.classList.remove('jogador2');
   elConfronto.innerHTML = '';
   menu.classList.add('oculta');
@@ -320,6 +351,12 @@ function abrirTimes() {
 function escolherTime(chave) {
   Som.ligar(); Som.botao();
   times[escolhendo] = chave;
+  if (escolhendo === 1 && soMeuTime()) {
+    encherSacola();                       // fresh ladder, fresh draw order
+    sortearAdversario();
+    if (destino) { const ir = destino; destino = null; ir(); }
+    return;
+  }
   if (escolhendo === 1) {
     escolhendo = 2;
     subTimes.innerHTML = modo === 'ia' ? `<b>${t('ai')}</b>` : `<b>${t('player2')}</b>`;
@@ -522,6 +559,7 @@ for (const b of document.querySelectorAll('#especiais button')) {
 /* ---------------------- boot ---------------------- */
 Progresso.carregar();
 idioma = Progresso.dados.idioma || 'pt';
+mostrarMira = Progresso.dados.mira !== false;   // on unless turned off
 if (Progresso.temTampa(Progresso.dados.tampa)) tampas[1] = Progresso.dados.tampa;
 if (NIVEIS[Progresso.dados.nivel]) nivel = Progresso.dados.nivel;
 if (!Progresso.temCampo(campoAtual)) campoAtual = Progresso.dados.campos[0];

@@ -97,6 +97,7 @@ const PETELECOS = 1;                    // one touch: the goal counts on the fir
 let fase = 'mirando';                   // mirando | rolando | pausa | fim | ia
 let mira = null;
 let relogio = 0;                        // physics ticks since the flick left
+let mostrarMira = true;                 // the aim beam; off = read the table yourself
 let brilhoGol = 0;
 let inicioDaJogada = 0;
 let miraIA = null;
@@ -730,7 +731,10 @@ function fimDeJogo(vencedor) {
   setTimeout(() => {
     if (humano) Som.fanfarra(); else Som.derrota();
   }, 900);
-  if (humano) celebrar(vencedor);
+  /* The winner's crest goes up either way — losing to a club you can see
+     named is better feedback than an empty table. Only the confetti is
+     reserved for actually winning. */
+  celebrar(vencedor, humano);
   const plano = Modo.fimDaPartida(vencedor);
   atualizarHUD();
   mostrarFim(plano, vencedor);
@@ -903,13 +907,13 @@ function soltarConfete(cl) {
   }
 }
 
-function celebrar(dono) {
+function celebrar(dono, festa) {
   const cl = clube(dono);
   esconderAviso();
   document.getElementById('tacaEscudo').style.cssText = estiloEscudo(times[dono]);
   document.getElementById('nomeCampeao').textContent = `${t('player' + dono)} · ${cl.nome}`;
   document.getElementById('placarFinal').textContent = `${placar[1]} × ${placar[2]} · ${campo().nome}`;
-  soltarConfete(cl);
+  if (festa) soltarConfete(cl);   // confetti only when the player won
   elCampeao.classList.remove('on');
   void elCampeao.offsetWidth;                // restart the animations
   elCampeao.classList.add('on');
@@ -1280,6 +1284,7 @@ function desenharBola() {
 }
 
 function desenharFantasma() {
+  if (!mostrarMira) return;
   if (!fantasma || fantasma.length < 2) return;
   ctx.save();
   ctx.setLineDash([3, 6]); ctx.lineWidth = 1.6;
@@ -1300,6 +1305,9 @@ function desenharMira() {
   ctx.setLineDash([5, 5]); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.5)';
   ctx.beginPath(); ctx.moveTo(bola.x, bola.y); ctx.lineTo(mira.x, mira.y); ctx.stroke();
   ctx.setLineDash([]);
+  /* Guide off: you still see how far you have pulled back, because that
+     is your own hand — you just do not get told where it will end up. */
+  if (!mostrarMira) { ctx.restore(); return; }
   /* a precise cap simply shows you more of where it is going */
   const alc = (26 + p * 190) * c.mira;
   const esp = Especiais.emMira(jogador);

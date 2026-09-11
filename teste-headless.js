@@ -225,6 +225,23 @@ for (const d of G.DESAFIOS) {
 }
 
 /* ---- 5. specials economy ---- */
+console.log('\n--- first-flick goal from the kickoff spot ---');
+for (const campo of G.ORDEM_CAMPOS) {
+  G.campoAtual = campo; G.nivel = 'insane'; G.modo = 'ia';
+  G.tampas[1] = 'classica'; G.Modo.rapida(); G.novaPartida({ alvo: 3 });
+  const e = G.melhorJogada(1);
+  const marca = e.res.gol === 1;
+  /* re-run the winning line to see whether it needed the walls */
+  let via = '-';
+  if (marca) {
+    G.fase = 'mirando';
+    G.chutar(1, e.ang, e.forca, null);
+    let n = 0; while (G.fase === 'rolando' && n < 900) { G.passo(); n++; }
+    via = `${G.Jogada.paredes} wall / ${G.Jogada.pregos} nail`;
+  }
+  console.log(`${campo.padEnd(8)} first-flick goal: ${marca ? 'YES' : 'no '}   ${via}`);
+}
+
 console.log('\n--- near miss detection ---');
 for (const campo of ['rua', 'estadio']) {
   let quases = 0, gols = 0, tiros = 0;

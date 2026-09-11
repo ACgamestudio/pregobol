@@ -23,6 +23,8 @@ en: {
   online: 'ONLINE',
   onlineSub: 'play a friend on another device',
   soClose: 'OOOOH! SO CLOSE', track: 'TRACK',
+  yourTeam: 'YOUR TEAM', nextOpponent: 'NEXT OPPONENT',
+  aimGuide: 'AIM GUIDE', aimOn: 'on', aimOff: 'off — harder',
   createRoom: 'CREATE ROOM', joinRoom: 'JOIN ROOM', findMatch: 'FIND MATCH',
   roomCode: 'ROOM CODE', enterCode: 'type the 4 letters',
   waitingOpponent: 'waiting for opponent…', searching: 'looking for a match…',
@@ -97,6 +99,8 @@ pt: {
   online: 'ONLINE',
   onlineSub: 'jogue com um amigo em outro aparelho',
   soClose: 'UUUH! QUASE!', track: 'MÚSICA',
+  yourTeam: 'SEU TIME', nextOpponent: 'PRÓXIMO ADVERSÁRIO',
+  aimGuide: 'MIRA', aimOn: 'ligada', aimOff: 'desligada — difícil',
   createRoom: 'CRIAR SALA', joinRoom: 'ENTRAR NA SALA', findMatch: 'PROCURAR PARTIDA',
   roomCode: 'CÓDIGO DA SALA', enterCode: 'digite as 4 letras',
   waitingOpponent: 'esperando o adversário…', searching: 'procurando partida…',
@@ -172,6 +176,8 @@ function aplicarIdioma() {
   card('cardDesafios', '🎯', t('challenges'), t('challengesSub'));
   card('cardCampo', '🎨', t('fieldSelect'), t('fieldSelectSub'));
   card('cardTampa', '🔘', t('capSelect'), t('capSelectSub'));
+  setHTML('cardMira', `<span class="ico">🎯</span>${t('aimGuide')}<em>${
+    (typeof mostrarMira === 'undefined' || mostrarMira) ? t('aimOn') : t('aimOff')}</em>`);
   setHTML('cardNivel', `<span class="ico">🧠</span>${t('ai')}<em id="nivelEstado"></em>`);
   setHTML('cardSom', `<span class="ico">🔊</span>${t('sound')}<em id="somEstado"></em>`);
   setHTML('cardIdioma', `<span class="ico">🌎</span>${t('language')}<em>${t('languageSub')}</em>`);

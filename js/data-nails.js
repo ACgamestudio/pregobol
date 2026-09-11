@@ -71,13 +71,19 @@ const LAYOUTS = {
     return { pregos: p, buracos: [] };
   },
 
-  /* STADIUM — the clean stage: fewest obstacles, fastest surface. */
+  /* STADIUM — the clean stage: fast surface, tidy lines. Still the most
+     open board, but no longer open enough to score down the middle on the
+     opening flick. The nail at 0.470/0.50 sits directly in front of the
+     kickoff spot — that one nail is what kills the free first shot, the
+     same trick the original board used. */
   estadio() {
     const p = [];
     _linha(p, 0.055, [0.50], 'normal');
-    _linha(p, 0.170, [0.26, 0.50, 0.74], 'normal');
-    _linha(p, 0.310, [0.18, 0.40, 0.62, 0.84], 'normal');
-    _linha(p, 0.455, [0.32, 0.68], 'normal');
+    _linha(p, 0.135, [0.30, 0.70], 'normal');
+    _linha(p, 0.215, [0.16, 0.42, 0.58, 0.84], 'normal');
+    _linha(p, 0.310, [0.26, 0.50, 0.74], 'normal');
+    _linha(p, 0.395, [0.16, 0.38, 0.62, 0.84], 'normal');
+    _linha(p, 0.470, [0.34, 0.50, 0.66], 'normal');   // 0.50 sits in front of the spot
     return { pregos: p, buracos: [] };
   },
 
