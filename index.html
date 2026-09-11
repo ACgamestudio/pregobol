@@ -350,7 +350,7 @@
   @keyframes gira{0%,45%{transform:rotate(0);}55%,100%{transform:rotate(90deg);}}
   body.jogando .girar.ativa{display:flex;}
 </style>
-<link rel="stylesheet" href="ui-ex.css">
+<link rel="stylesheet" href="css/ui-ex.css">
 </head>
 <body>
 
@@ -402,6 +402,7 @@
   <button id="btnMenu">☰ Menu</button>
   <button id="btnSom" class="on">🔊 Sound</button>
   <button id="btnNovo">↺ New match</button>
+  <button id="btnFaixa" title="Next track">🎵</button>
 
   <!-- special shots: earned, spent, never free (spec §6) -->
   <div class="cargasCaixa"><b id="cargas">0</b><span>⚡</span></div>
@@ -451,7 +452,7 @@
     <button class="card" id="cardNivel"></button>
     <button class="card" id="cardSom"></button>
     <button class="card idioma" id="cardIdioma"></button>
-    <button class="card online" id="cardOnline" disabled></button>
+    <button class="card online" id="cardOnline"></button>
   </div>
 </div>
 
@@ -488,6 +489,29 @@
   <button class="voltar" id="voltarMenu4">back to menu</button>
 </div>
 
+<!-- ===================== online ===================== -->
+<div class="tela oculta" id="telaOnline">
+  <h2 id="tituloOnline">ONLINE</h2>
+  <div class="painelOnline">
+    <div class="codigoCaixa">
+      <span class="rotCod" id="rotCodigo">ROOM CODE</span>
+      <b id="onCodigo" class="vazio">----</b>
+      <small id="dicaCodigo">send this code to your friend</small>
+    </div>
+    <div class="onBotoes">
+      <button id="btnCriarSala">CREATE ROOM</button>
+      <button id="btnProcurar">FIND MATCH</button>
+    </div>
+    <div class="onEntrar">
+      <input id="onEntrada" maxlength="4" autocomplete="off" spellcheck="false"
+             placeholder="CODE" aria-label="Room code">
+      <button id="btnEntrarSala">JOIN</button>
+    </div>
+    <div class="onEstado" id="onEstado"></div>
+  </div>
+  <button class="voltar" id="voltarMenu5">back to menu</button>
+</div>
+
 <!-- ===================== end of match ===================== -->
 <div class="tela fim oculta" id="telaFim">
   <div class="cartaz">
@@ -513,17 +537,23 @@
      Plain <script> tags on purpose — they share one global scope, which is
      what lets the engine stay in the same shape it had as a single file.
      ======================================================================= -->
-<script src="i18n.js"></script>
-<script src="audio.js"></script>
-<script src="data-caps.js"></script>
-<script src="data-fields.js"></script>
-<script src="data-nails.js"></script>
-<script src="fx.js"></script>
-<script src="combos.js"></script>
-<script src="specials.js"></script>
-<script src="progress.js"></script>
-<script src="modes.js"></script>
-<script src="engine.js"></script>
-<script src="ui.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/rng.js"></script>
+<script src="js/data-caps.js"></script>
+<script src="js/data-fields.js"></script>
+<script src="js/data-nails.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/combos.js"></script>
+<script src="js/specials.js"></script>
+<script src="js/progress.js"></script>
+<script src="js/net.js"></script>
+<script src="js/modes.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ui.js"></script>
 </body>
 </html>
