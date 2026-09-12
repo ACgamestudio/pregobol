@@ -18,14 +18,39 @@ for (const el of document.querySelectorAll('.menu .fundo, .menu .arte')) {
 }
 
 /* ---- abertura: o clique libera som, tela cheia e paisagem ---- */
+/* Nunca deixe o boot depender de uma promessa do navegador. Em vários
+   navegadores de celular requestFullscreen não resolve NEM rejeita: fica
+   pendurada. Como o iniciar() dava await nela, o jogo simplesmente não
+   começava — só destravava quando o usuário apertava voltar e o pedido
+   era cancelado. Agora tudo tem prazo. */
+function comPrazo(p, ms) {
+  return Promise.race([
+    Promise.resolve(p).catch(() => {}),
+    new Promise(r => setTimeout(r, ms))
+  ]);
+}
+
+function emTelaCheia() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+
 async function telaCheiaPaisagem() {
   const alvo = document.documentElement;
   try {
-    if (alvo.requestFullscreen) await alvo.requestFullscreen({ navigationUI: 'hide' });
-    else if (alvo.webkitRequestFullscreen) alvo.webkitRequestFullscreen();
+    const p = alvo.requestFullscreen ? alvo.requestFullscreen({ navigationUI: 'hide' })
+            : (alvo.webkitRequestFullscreen ? alvo.webkitRequestFullscreen() : null);
+    await comPrazo(p, 1200);
   } catch (e) { /* iPhone não permite em elemento comum */ }
-  try { await screen.orientation.lock('landscape'); } catch (e) { /* desktop ignora */ }
+  try {
+    const l = screen.orientation && screen.orientation.lock
+            ? screen.orientation.lock('landscape') : null;
+    await comPrazo(l, 800);
+  } catch (e) { /* desktop ignora */ }
   setTimeout(ajustarEscala, 250);
+  /* Não entrou? O botão na barra fica visível pra tentar de novo num
+     toque futuro — no iPhone é a única forma que existe. */
+  const bt = document.getElementById('btnTela');
+  if (bt) bt.classList.toggle('oculta', emTelaCheia());
 }
 
 /* Espera o vídeo ficar tocável. O teto era 6s, e acontecia duas vezes —
@@ -720,6 +745,22 @@ if (btnElenco) btnElenco.onclick = () => {
   Progresso.salvar();
   montarGradeTimes();
 };
+
+const btnTela = document.getElementById('btnTela');
+if (btnTela) btnTela.onclick = async () => {
+  Som.botao();
+  if (emTelaCheia()) {
+    try { await (document.exitFullscreen || document.webkitExitFullscreen).call(document); } catch (e) {}
+  } else {
+    await telaCheiaPaisagem();
+  }
+  setTimeout(ajustarEscala, 200);
+  btnTela.classList.toggle('oculta', emTelaCheia());
+};
+document.addEventListener('fullscreenchange', () => {
+  if (btnTela) btnTela.classList.toggle('oculta', emTelaCheia());
+  setTimeout(ajustarEscala, 150);
+});
 
 const btnFaixa = document.getElementById('btnFaixa');
 if (btnFaixa) btnFaixa.onclick = () => { Som.botao(); proximaFaixa(); };

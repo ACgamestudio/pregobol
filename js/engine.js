@@ -1446,17 +1446,18 @@ function laco(agora) {
   desenharMiraTeclado();
   desenharMiraIA();
   FX.desenhar(ctx);
-  if (brilhoGol > 0) {
-    ctx.fillStyle = `rgba(255,255,255,${brilhoGol * .30})`;
-    ctx.fillRect(-W, -H, W * 3, H * 3);
-    brilhoGol -= .04 * k;
-  }
+  FX.desenharOndas(ctx);
+  FX.desenharFoco(ctx, W, H);
+  /* O lavado branco sobre a mesa saiu daqui: somado ao brilho global ele
+     chegava a 0,52 de branco puro e estourava metade do tabuleiro. Quem
+     carrega o momento agora são os anéis e o holofote. */
+  if (brilhoGol > 0) brilhoGol -= .05 * k;
   ctx.restore();
 
   const f = FX.brilho();
   if (f > 0) {
     ctx.save();
-    ctx.fillStyle = `rgba(255,255,255,${f * .22})`;
+    ctx.fillStyle = `rgba(255,255,255,${f * .10})`;
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }

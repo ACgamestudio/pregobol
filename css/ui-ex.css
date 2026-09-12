@@ -274,3 +274,7 @@ body.jogando .cenario{opacity:1;}
 }
 .trocaElenco:hover{ transform:scale(1.06); border-color:var(--ouro); }
 @media (max-width:560px){ .trocaElenco{ font-size:11px; padding:5px 10px; } }
+
+/* botão de tela cheia: só aparece quando NÃO estamos em tela cheia */
+#btnTela{ min-width:42px; padding-left:10px; padding-right:10px; }
+#btnTela.oculta{ display:none; }

@@ -61,6 +61,8 @@ global.window = {
   }
 };
 global.document = {
+  addEventListener: noop, removeEventListener: noop,
+  fullscreenElement: null, webkitFullscreenElement: null,
   getElementById: el,
   querySelector: s => el('sel:' + s),
   querySelectorAll: () => [],
