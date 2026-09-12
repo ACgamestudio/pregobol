@@ -13,7 +13,7 @@ const Progresso = (() => {
     desafios: {},          // id → true
     arcade: 0,             // how far up the arcade ladder
     torneios: 0,           // tournaments won
-    idioma: 'en', mira: true, elenco: 'br', viuIntro: false,
+    idioma: 'en', mira: true, elenco: 'br', abertura: true,
     tampa: 'classica',
     nivel: 'normal'
   });
