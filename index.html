@@ -54,7 +54,7 @@
   .aviso span{font-size:12.5px;color:#B49B7E;line-height:1.35;}
 
   /* ============ escudos ao lado da mesa ============
-     O recorte sai da própria arte assets/times.png (ver estiloEscudo no JS),
+     O recorte sai da própria arte assets/times.webp (ver estiloEscudo no JS),
      então não entra nenhum arquivo novo no jogo. */
   .board-wrap{--ladoW:0px;}
   .lado{
@@ -260,13 +260,9 @@
     border-radius:2px;transform:scaleX(0);transform-origin:left;transition:transform .16s;}
   .card:hover::after,.card:active::after{transform:scaleX(1);}
 
-  /* opção "online" — riscada, com carimbo EM BREVE, como pichação tampada */
-  .card.online{color:#B7A489;opacity:.6;cursor:not-allowed;transform:rotate(-1.4deg);}
-  .card.online .ico{filter:grayscale(.5) drop-shadow(0 2px 3px rgba(0,0,0,.6));}
-  .card.online::before{content:"";position:absolute;left:-2px;right:-2px;top:52%;height:2px;
-    background:rgba(231,201,140,.7);transform:rotate(-3deg);}   /* riscado por cima */
-  .card.online::after{display:none;}
-  .card.online:active{transform:rotate(-1.4deg);color:#B7A489;}
+    /* "online" já está no ar: sem risco, sem cinza, sem cursor barrado */
+  .card.online{transform:rotate(-1.4deg);}
+  .card.online:active{transform:rotate(-1.4deg) scale(.97);}
   .selo{
     margin-left:6px;transform:rotate(6deg);display:inline-block;
     font-size:.3em;font-weight:800;letter-spacing:.1em;color:#E8DAC0;
@@ -298,7 +294,7 @@
   /* --- escolha de times: a arte inteira, com os escudos como botões --- */
   .telaTimes{padding:0;gap:0;background:#05070B;overflow:hidden;
              align-items:center;justify-content:center;}
-  .telaTimes .borrao{position:absolute;inset:0;background:url('assets/times.png') center/cover no-repeat;
+  .telaTimes .borrao{position:absolute;inset:0;background:url('assets/times.webp') center/cover no-repeat;
     filter:blur(34px) brightness(.45);transform:scale(1.12);}
   .arteTimes{position:relative;z-index:2;aspect-ratio:1586/992;
     width:min(100%,calc(100vh * 1586 / 992));
@@ -461,9 +457,10 @@
 <div class="tela telaTimes oculta" id="telaTimes">
   <div class="borrao"></div>
   <div class="arteTimes" id="arteTimes">
-    <img src="assets/times.png" alt="Pick your teams">
+    <img src="assets/times.webp" alt="Pick your teams">
     <div class="hotspots" id="gradeTimes"></div>
     <button class="hot voltarArte" id="voltarMenu1" aria-label="Back to menu"></button>
+    <button class="trocaElenco" id="btnElenco">MUNDO</button>
     <div class="subArte" id="subTimes"></div>
     <div class="confrontoArte" id="confronto"></div>
   </div>

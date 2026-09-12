@@ -217,6 +217,7 @@ const TransporteAppsScript = {
       try {
         const r = await this.chamar({ acao: 'sync', cod: this._cod,
                                       sou: Rede.sou || 0, desde: this._desde });
+        this._falhas = 0;
         if (r.ok) {
           if (this._cbSala) this._cbSala(this.traduzir(r.sala, r.agora));
           (r.jogadas || []).forEach(j => {
@@ -230,7 +231,15 @@ const TransporteAppsScript = {
         } else if (this._cbSala) {
           this._cbSala(null);              // sala sumiu
         }
-      } catch (e) { /* falha de rede: tenta de novo na próxima volta */ }
+      } catch (e) {
+        /* Uma falha isolada é normal (rede oscila). Várias seguidas
+           significam que não vai voltar sozinho, e ficar mudo é pior que
+           errar: o jogador fica olhando "conectando" pra sempre. */
+        this._falhas = (this._falhas || 0) + 1;
+        if (this._falhas === 3 && Rede.ao.erro)
+          Rede.ao.erro(new Error('sem resposta do servidor: ' + (e.message || e)));
+      }
+      if (!this._erroAtual) this._falhas = 0;
       if (this._timer) this._timer = setTimeout(passo, this.INTERVALO);
     };
     this._timer = setTimeout(passo, 0);
@@ -339,6 +348,18 @@ const Rede = {
     return c;
   },
 
+  /* Nada pode ficar "conectando" pra sempre. Se o outro lado não
+     aparecer nesse prazo, o jogador é avisado em vez de encarar uma
+     tela parada. */
+  ESPERA_MAX: 45000,
+  _vigiar() {
+    clearTimeout(this._vigia);
+    this._vigia = setTimeout(() => {
+      if (this.estado !== 'jogando' && this.ativo && this.ao.erro)
+        this.ao.erro(new Error('ninguém entrou na sala'));
+    }, this.ESPERA_MAX);
+  },
+
   async criar(cfg, publica) {
     this.sala = this.codigo();
     this.sou = 1; this.ativo = true; this.publica = !!publica;
@@ -347,6 +368,7 @@ const Rede = {
     if (publica) await this.T.enfileirar(this.sala);
     this.estado = 'esperando';
     this._ouvir();
+    this._vigiar();
     return this.sala;
   },
 
@@ -383,6 +405,7 @@ const Rede = {
       this.cfgSala = s;
       const doisAqui = s.vivo && s.vivo[1] && s.vivo[2];
       if (doisAqui && this.estado !== 'jogando') {
+        clearTimeout(this._vigia);
         this.estado = 'jogando';
         if (this.publica) this.T.desenfileirar();
         if (this.ao.pronto) this.ao.pronto(s);

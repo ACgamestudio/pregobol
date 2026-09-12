@@ -14,7 +14,7 @@ const subTimes = document.getElementById('subTimes');
 const elConfronto = document.getElementById('confronto');
 
 for (const el of document.querySelectorAll('.menu .fundo, .menu .arte')) {
-  el.style.backgroundImage = "url('assets/splash.png')";
+  el.style.backgroundImage = "url('assets/splash.webp')";
 }
 
 /* ---- abertura: o clique libera som, tela cheia e paisagem ---- */
@@ -28,11 +28,16 @@ async function telaCheiaPaisagem() {
   setTimeout(ajustarEscala, 250);
 }
 
-function pronto(v) {
+/* Espera o vídeo ficar tocável. O teto era 6s, e acontecia duas vezes —
+   no celular isso virava mais de dez segundos de tela preta antes de
+   qualquer coisa aparecer. 2,5s é o bastante pra rede boa e curto o
+   bastante pra rede ruim não punir ninguém: se estourar, o vídeo toca
+   com o que já baixou. */
+function pronto(v, teto) {
   return v.readyState >= 3 ? Promise.resolve() : new Promise(r => {
     const ok = () => { v.removeEventListener('canplay', ok); r(); };
     v.addEventListener('canplay', ok);
-    setTimeout(r, 6000);
+    setTimeout(r, teto || 2500);
   });
 }
 
@@ -182,8 +187,19 @@ async function iniciar() {
   abertura.classList.add('aguardando');
   Som.ligar();
   destravar(vinheta); destravar(intro); destravar(musica);  // ainda dentro do gesto do usuário
-  intro.load();                           // começa a baixar a abertura desde já
   await telaCheiaPaisagem();
+
+  /* Quem já viu a abertura vai direto pro menu. Assistir 22 segundos de
+     vídeo toda vez que abre o jogo cansa na segunda partida, e no celular
+     ainda custa o download. A vinheta continua na primeira vez. */
+  if (Progresso.dados.viuIntro) {
+    abertura.classList.add('oculta');
+    tocarMusica();
+    abrirMenu();
+    return;
+  }
+
+  intro.load();                           // começa a baixar a abertura desde já
   await pronto(vinheta);
   abertura.classList.add('oculta');
   cine.classList.add('on');
@@ -196,6 +212,8 @@ async function iniciar() {
   await tocar(intro);                                    // vídeo de abertura (mudo)
   intro.pause();
   cine.classList.remove('on');
+  Progresso.dados.viuIntro = true;        // da próxima vez, direto ao menu
+  Progresso.salvar();
   abrirMenu();
 }
 document.getElementById('btnIniciar').onclick = iniciar;
@@ -309,7 +327,7 @@ function soMeuTime() { return Modo.tipo === 'arcade'; }
    that means you face each of them once, in a different order each run. */
 let sacola = [];
 function encherSacola() {
-  sacola = ORDEM_CLUBES.filter(c => c !== times[1]);
+  sacola = ELENCOS[folhaDe(times[1])].ordem.filter(c => c !== times[1]);
   for (let i = sacola.length - 1; i > 0; i--) {          // Fisher-Yates
     const j = Math.floor(Math.random() * (i + 1));
     const tmp = sacola[i]; sacola[i] = sacola[j]; sacola[j] = tmp;
@@ -321,6 +339,10 @@ function sortearAdversario() {
   return times[2];
 }
 function montarGradeTimes() {
+  const img = document.querySelector('#arteTimes img');
+  if (img) img.src = ELENCOS[elenco].arte;
+  const bt = document.getElementById('btnElenco');
+  if (bt) bt.textContent = elenco === 'br' ? t('worldTeams') : t('brTeams');
   gradeTimes.innerHTML = '';
   ORDEM_CLUBES.forEach((chave, i) => {
     const cl = CLUBES[chave], p = AREAS[i];
@@ -560,6 +582,7 @@ for (const b of document.querySelectorAll('#especiais button')) {
 Progresso.carregar();
 idioma = Progresso.dados.idioma || 'pt';
 mostrarMira = Progresso.dados.mira !== false;   // on unless turned off
+usarElenco(Progresso.dados.elenco || 'br');
 if (Progresso.temTampa(Progresso.dados.tampa)) tampas[1] = Progresso.dados.tampa;
 if (NIVEIS[Progresso.dados.nivel]) nivel = Progresso.dados.nivel;
 if (!Progresso.temCampo(campoAtual)) campoAtual = Progresso.dados.campos[0];
@@ -621,6 +644,10 @@ function comecarOnline() {
 
 Rede.ao.pronto = () => comecarOnline();
 Rede.ao.jogada = m => jogadaRemota(m);
+Rede.ao.erro = e => {
+  dizer(null, (e && e.message) ? e.message : t('netFail'));
+  mostrarCodigo('');
+};
 Rede.ao.saiu = () => {
   mostrarAviso(t('opponentLeft'), '');
   fase = 'fim';
@@ -637,17 +664,29 @@ function abrirOnline() {
 
 ligarCard('cardOnline', abrirOnline);
 
+/* Toda ação de rede passa por aqui. Sem isso, uma exceção dentro de um
+   onclick vira rejeição não tratada: o console reclama e a tela fica
+   parada em "conectando" pra sempre, sem nenhuma pista pro jogador. */
+async function tentar(fn) {
+  try { return await fn(); }
+  catch (e) {
+    dizer(null, (e && e.message) ? e.message : t('netFail'));
+    mostrarCodigo('');
+    return null;
+  }
+}
+
 const btnCriar = document.getElementById('btnCriarSala');
-if (btnCriar) btnCriar.onclick = async () => {
+if (btnCriar) btnCriar.onclick = () => tentar(async () => {
   if (!(await ligarRede())) return;
   Som.botao();
   const cod = await Rede.criar({ campo: campoAtual, alvo: 3 }, false);
   mostrarCodigo(cod);
   dizer('waitingOpponent');
-};
+});
 
 const btnEntrar = document.getElementById('btnEntrarSala');
-if (btnEntrar) btnEntrar.onclick = async () => {
+if (btnEntrar) btnEntrar.onclick = () => tentar(async () => {
   if (!(await ligarRede())) return;
   Som.botao();
   const cod = (onEntrada.value || '').toUpperCase().trim();
@@ -656,16 +695,27 @@ if (btnEntrar) btnEntrar.onclick = async () => {
   const ok = await Rede.entrar(cod, { tampa: tampas[1] });
   if (!ok) { dizer('roomGone'); return; }
   mostrarCodigo(cod);
-};
+});
 
 const btnProcurar = document.getElementById('btnProcurar');
-if (btnProcurar) btnProcurar.onclick = async () => {
+if (btnProcurar) btnProcurar.onclick = () => tentar(async () => {
   if (!(await ligarRede())) return;
   Som.botao();
   dizer('searching');
   const r = await Rede.procurar({ campo: campoAtual, alvo: 3 });
   mostrarCodigo(r.sala);
   dizer(r.modo === 'aguardando' ? 'waitingOpponent' : 'connecting');
+});
+
+/* Switching sheets mid-pick keeps whatever was already chosen: player 1
+   can take a Brazilian club and player 2 an international one. */
+const btnElenco = document.getElementById('btnElenco');
+if (btnElenco) btnElenco.onclick = () => {
+  Som.botao();
+  usarElenco(elenco === 'br' ? 'intl' : 'br');
+  Progresso.dados.elenco = elenco;
+  Progresso.salvar();
+  montarGradeTimes();
 };
 
 const btnFaixa = document.getElementById('btnFaixa');

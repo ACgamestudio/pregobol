@@ -7,7 +7,7 @@
      · the table is still 780×470 and still lies down in landscape
      · the control is still one drag: pull back from the piece, release
      · the AI still plays by simulating the real physics, not by cheating
-     · the club shirts still paint the nails, from assets/times.png
+     · the club shirts still paint the nails, from assets/times.webp
      · a first-touch goal still counts
 
    What is new: the flicked piece is a bottle cap with its own stats, the
@@ -39,7 +39,7 @@ const wrap = document.querySelector('.board-wrap');
 const elCenario = document.getElementById('cenario');
 
 /* ---------------------- clubs ----------------------
-   Names and crests come from assets/times.png. Only the colours and the
+   Names and crests come from assets/times.webp. Only the colours and the
    shirt pattern live here, because that is what the game paints on the
    nails. Untouched from the original build. */
 const CLUBES = {
@@ -52,8 +52,38 @@ const CLUBES = {
   palestra:    { nome:'Palestra Verde',           c1:'#046B37', c2:'#F2F2F2', padrao:'solido'   },
   morumbi:     { nome:'Tricolor do Morumbi',      c1:'#F2F2F2', c2:'#E30613', c3:'#111111', padrao:'faixas3' }
 };
+/* Second sheet. Same 4x2 grid, same crop coordinates — the artwork was
+   built to the same template, so AREAS is shared. */
+Object.assign(CLUBES, {
+  merengues:  { nome:'Merengues',     c1:'#F2F2F2', c2:'#FEBE10', padrao:'solido',   folha:'intl' },
+  cules:      { nome:'Culés',         c1:'#A50044', c2:'#004D98', padrao:'listras',  folha:'intl' },
+  reddevils:  { nome:'Red Devils',    c1:'#DA291C', c2:'#111111', padrao:'gola',     folha:'intl' },
+  reds:       { nome:'Reds',          c1:'#C8102E', c2:'#F2F2F2', padrao:'solido',   folha:'intl' },
+  bavaros:    { nome:'Bávaros',       c1:'#DC052D', c2:'#F2F2F2', padrao:'gola',     folha:'intl' },
+  velhasenhora:{nome:'Velha Senhora', c1:'#F2F2F2', c2:'#111111', padrao:'listras',  folha:'intl' },
+  parisienses:{ nome:'Parisienses',   c1:'#004170', c2:'#DA291C', c3:'#F2F2F2', padrao:'faixas3', folha:'intl' },
+  blues:      { nome:'Blues',         c1:'#034694', c2:'#F2F2F2', padrao:'solido',   folha:'intl' }
+});
+
 /* The order MUST follow the artwork: top row, then bottom row. */
-const ORDEM_CLUBES = ['rubronegro','estrela','cruzmalta','laranjeiras','peixe','timao','palestra','morumbi'];
+const ELENCOS = {
+  br:   { arte:'assets/times.webp',
+          ordem:['rubronegro','estrela','cruzmalta','laranjeiras','peixe','timao','palestra','morumbi'] },
+  intl: { arte:'assets/times_intl.webp',
+          ordem:['merengues','cules','reddevils','reds','bavaros','velhasenhora','parisienses','blues'] }
+};
+let elenco = 'br';
+
+/* ORDEM_CLUBES stays a live view of the sheet on screen, so every place
+   that already indexed into it keeps working unchanged. */
+let ORDEM_CLUBES = ELENCOS.br.ordem;
+function usarElenco(k) {
+  elenco = (k === 'intl') ? 'intl' : 'br';
+  ORDEM_CLUBES = ELENCOS[elenco].ordem;
+  return elenco;
+}
+/* Which sheet a club belongs to — a match can mix the two. */
+function folhaDe(chave) { return (CLUBES[chave] && CLUBES[chave].folha === 'intl') ? 'intl' : 'br'; }
 /* Crop of each crest inside the artwork, in % of the image. */
 const AREAS = [
   { l:7.57,  t:26.31, w:20.37, h:25.50 }, { l:29.32, t:26.31, w:20.18, h:25.50 },
@@ -796,13 +826,14 @@ const elRotulo = document.getElementById('rotuloModo');
 /* ---------------------- crest cropped from the artwork ---------------------- */
 const CORTE_TOPO = 1.5, CORTE_BASE = 22;      // % of the cell height
 function estiloEscudo(chave) {
-  const i = ORDEM_CLUBES.indexOf(chave);
+  const f = folhaDe(chave);
+  const i = ELENCOS[f].ordem.indexOf(chave);
   if (i < 0) return '';
   const a = AREAS[i];
   const tp = a.t + a.h * CORTE_TOPO / 100;
   const h = a.h * (100 - CORTE_TOPO - CORTE_BASE) / 100;
   return `aspect-ratio:${(a.w * 1586).toFixed(1)}/${(h * 992).toFixed(1)};` +
-         `background-image:url('assets/times.png');` +
+         `background-image:url('${ELENCOS[f].arte}');` +
          `background-size:${(10000 / a.w).toFixed(3)}% ${(10000 / h).toFixed(3)}%;` +
          `background-position:${(a.l / (100 - a.w) * 100).toFixed(3)}% ` +
                              `${(tp / (100 - h) * 100).toFixed(3)}%;`;
