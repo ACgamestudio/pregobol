@@ -125,6 +125,143 @@ const TransporteFirebase = {
   }
 };
 
+
+/* ------------------------------------------------------------------
+   Google Apps Script.
+
+   Mesmo contrato do transporte do Firebase, com uma diferença que muda
+   tudo: não existe push. Um web app do Apps Script é requisição e
+   resposta, então "ouvir" aqui é perguntar de tempos em tempos.
+
+   Uma consequência prática: sem onDisconnect, a queda do adversário
+   deixa de ser um evento e passa a ser uma dedução — ninguém deu sinal
+   há QUEDA_MS. Por isso o servidor devolve o próprio relógio em cada
+   resposta: comparar carimbos do servidor com o relógio do celular do
+   jogador daria falso positivo toda vez que os dois estivessem
+   dessincronizados.
+   ------------------------------------------------------------------ */
+const TransporteAppsScript = {
+  nome: 'apps-script',
+  url: '', uid: null,
+  INTERVALO: 1800,        // ms entre consultas
+  QUEDA_MS: 16000,        // sem sinal por mais que isso = saiu
+  _timer: null, _cbSala: null, _cbJogadas: null, _desde: -1, _cod: null,
+
+  async conectar(cfg) {
+    this.url = (cfg && cfg.url) || APPS_SCRIPT_URL;
+    if (!this.url) throw new Error('APPS_SCRIPT_URL vazia');
+    this.uid = 'u' + Math.random().toString(36).slice(2, 10);
+  },
+
+  /* text/plain de propósito: com application/json o navegador manda um
+     OPTIONS de preflight, e o Apps Script não responde OPTIONS. */
+  async chamar(dados) {
+    const r = await fetch(this.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(dados),
+      redirect: 'follow'
+    });
+    if (!r.ok) throw new Error('http ' + r.status);
+    return await r.json();
+  },
+
+  async criarSala(cod, dados) {
+    const r = await this.chamar({ acao: 'criar', cod: cod, uid: this.uid,
+                                  cfg: JSON.stringify(dados.cfg || dados) });
+    if (!r.ok) throw new Error(r.motivo || 'falhou');
+  },
+
+  async lerSala(cod) {
+    const r = await this.chamar({ acao: 'ler', cod: cod });
+    return r.ok ? this.traduzir(r.sala, r.agora) : null;
+  },
+
+  async entrarSala(cod, dados) {
+    const r = await this.chamar({ acao: 'entrar', cod: cod, uid: this.uid,
+                                  cfg: JSON.stringify(dados || {}) });
+    return !!r.ok;
+  },
+
+  /* Formato do Firebase pra cima: vivo vira booleano, e é aqui que a
+     ausência de sinal vira "saiu". */
+  traduzir(s, agora) {
+    if (!s) return null;
+    const vivo = {};
+    ['1', '2'].forEach(k => {
+      const t = s.vivo && s.vivo[k];
+      if (t && (agora - t) < this.QUEDA_MS) vivo[k] = true;
+    });
+    return { host: s.host, visitante: s.visitante, cfg: s.cfg, cfgB: s.cfgB,
+             vivo: vivo, criada: s.criada };
+  },
+
+  /* Uma consulta alimenta os dois "ouvintes": estado da sala e jogadas
+     novas chegam na mesma resposta. */
+  ouvirSala(cod, cb) {
+    this._cod = cod; this._cbSala = cb;
+    this.iniciarLoop();
+    return () => { this._cbSala = null; this.pararSePreciso(); };
+  },
+
+  ouvirJogadas(cod, cb) {
+    this._cod = cod; this._cbJogadas = cb;
+    this.iniciarLoop();
+    return () => { this._cbJogadas = null; this.pararSePreciso(); };
+  },
+
+  iniciarLoop() {
+    if (this._timer) return;
+    const passo = async () => {
+      if (!this._cod) return;
+      try {
+        const r = await this.chamar({ acao: 'sync', cod: this._cod,
+                                      sou: Rede.sou || 0, desde: this._desde });
+        if (r.ok) {
+          if (this._cbSala) this._cbSala(this.traduzir(r.sala, r.agora));
+          (r.jogadas || []).forEach(j => {
+            this._desde = Math.max(this._desde, j.n);
+            if (this._cbJogadas) {
+              let m = null;
+              try { m = JSON.parse(j.msg); } catch (e) {}
+              if (m) this._cbJogadas(j.n, m);
+            }
+          });
+        } else if (this._cbSala) {
+          this._cbSala(null);              // sala sumiu
+        }
+      } catch (e) { /* falha de rede: tenta de novo na próxima volta */ }
+      if (this._timer) this._timer = setTimeout(passo, this.INTERVALO);
+    };
+    this._timer = setTimeout(passo, 0);
+  },
+
+  pararSePreciso() {
+    if (this._cbSala || this._cbJogadas) return;
+    if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+  },
+
+  async enviar(cod, n, msg) {
+    await this.chamar({ acao: 'enviar', cod: cod, n: n, sou: Rede.sou,
+                        msg: JSON.stringify(msg) });
+  },
+
+  async enfileirar(cod) { await this.chamar({ acao: 'enfileirar', cod: cod }); },
+  async desenfileirar() {
+    if (this._cod) await this.chamar({ acao: 'desenfileirar', cod: this._cod });
+  },
+  async pegarDaFila() {
+    const r = await this.chamar({ acao: 'pegar' });
+    return r.ok ? r.cod : null;
+  },
+
+  async sair(cod, sou) {
+    if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+    this._cbSala = this._cbJogadas = null; this._cod = null; this._desde = -1;
+    if (cod) { try { await this.chamar({ acao: 'sair', cod: cod, sou: sou }); } catch (e) {} }
+  }
+};
+
 /* In-process transport. Used by net-test.js to run two clients against
    each other without a network. */
 const TransporteLoop = {
@@ -184,8 +321,13 @@ const Rede = {
 
   usar(t) { this.T = t; return this; },
 
+  /* Apps Script ganha se estiver configurado — é o que você estará
+     testando. Sem ele, cai no Firebase. */
   async conectar(cfg) {
-    if (!this.T) this.usar(TransporteFirebase);
+    if (!this.T) {
+      const usarGAS = (typeof APPS_SCRIPT_PRONTO !== 'undefined') && APPS_SCRIPT_PRONTO;
+      this.usar(usarGAS ? TransporteAppsScript : TransporteFirebase);
+    }
     await this.T.conectar(cfg);
   },
 

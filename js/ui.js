@@ -591,10 +591,13 @@ function mostrarCodigo(cod) {
 
 async function ligarRede() {
   if (onLigado) return true;
-  if (!FIREBASE_PRONTO) { dizer(null, 'Fill in js/firebase-config.js first'); return false; }
+  if (!APPS_SCRIPT_PRONTO && !FIREBASE_PRONTO) {
+    dizer(null, 'Preencha js/apps-script-config.js ou js/firebase-config.js');
+    return false;
+  }
   dizer('connecting');
   try {
-    await Rede.conectar(FIREBASE_CONFIG);
+    await Rede.conectar(APPS_SCRIPT_PRONTO ? { url: APPS_SCRIPT_URL } : FIREBASE_CONFIG);
     onLigado = true;
     return true;
   } catch (e) {
@@ -628,7 +631,7 @@ function abrirOnline() {
   fecharTelas();
   telaOnline.classList.remove('oculta');
   mostrarCodigo('');
-  dizer(null, FIREBASE_PRONTO ? '' : 'Fill in js/firebase-config.js first');
+  dizer(null, (APPS_SCRIPT_PRONTO || FIREBASE_PRONTO) ? '' : 'Preencha js/apps-script-config.js ou js/firebase-config.js');
   ligarRede();
 }
 
