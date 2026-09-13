@@ -73,8 +73,37 @@ let pularAtual = null;
 const musica = document.getElementById('musica');
 let musicaAtiva = false;
 
-function tocarMusica() {
-  musicaAtiva = true;
+/* A música do menu toca inteira UMA vez e depois fica repetindo só os
+   últimos segundos — a cauda instrumental. Ouvir a faixa inteira em
+   loop enquanto se escolhe time e campo cansa rápido.
+
+   Isso é feito em Web Audio, não no elemento <audio>, por um motivo
+   específico: laço de <audio> tem emenda. Um corte de algumas dezenas de
+   milissegundos a cada 5 segundos incomodaria MAIS que a repetição que
+   estamos tirando. O loopStart/loopEnd do Web Audio é exato na amostra.
+
+   Se a decodificação falhar por qualquer razão, cai no elemento <audio>
+   com loop comum: melhor a repetição antiga que silêncio. */
+const CAUDA = 5;                       // segundos instrumentais do fim
+let bufMusica = null, fonteMusica = null, ganhoMusica = null, tentouDecodificar = false;
+
+async function carregarMusica() {
+  if (tentouDecodificar) return bufMusica;
+  tentouDecodificar = true;
+  try {
+    const ctxA = Som.ligar();
+    if (!ctxA) return null;
+    const resp = await fetch(musica.getAttribute('src'));
+    const bruto = await resp.arrayBuffer();
+    bufMusica = await new Promise((ok, erro) => {
+      const p = ctxA.decodeAudioData(bruto, ok, erro);
+      if (p && p.then) p.then(ok).catch(erro);
+    });
+  } catch (e) { bufMusica = null; }
+  return bufMusica;
+}
+
+function tocarMusicaSimples() {        // fallback: como era antes
   musica.loop = true;
   musica.volume = .75;
   musica.muted = !Som.ligado;
@@ -83,9 +112,48 @@ function tocarMusica() {
   if (p && p.catch) p.catch(() => { musica.muted = true; const q = musica.play(); if (q && q.catch) q.catch(() => {}); });
 }
 
+async function tocarMusica() {
+  musicaAtiva = true;
+  const buf = await carregarMusica();
+  if (!musicaAtiva) return;            // saiu do menu enquanto decodificava
+  if (!buf) { tocarMusicaSimples(); return; }
+
+  const ctxA = Som.ligar();
+  pararFonteMusica();
+  fonteMusica = ctxA.createBufferSource();
+  fonteMusica.buffer = buf;
+  /* toca do começo, e quando chega ao fim volta pra cauda em vez de
+     voltar pro começo */
+  fonteMusica.loop = true;
+  fonteMusica.loopEnd = buf.duration;
+  fonteMusica.loopStart = Math.max(0, buf.duration - CAUDA);
+  ganhoMusica = ctxA.createGain();
+  ganhoMusica.gain.value = Som.ligado ? 0.75 : 0;
+  fonteMusica.connect(ganhoMusica).connect(ctxA.destination);
+  fonteMusica.start(0, 0);
+}
+
+function pararFonteMusica() {
+  if (!fonteMusica) return;
+  try { fonteMusica.stop(); } catch (e) {}
+  try { fonteMusica.disconnect(); } catch (e) {}
+  fonteMusica = null; ganhoMusica = null;
+}
+
 function pararMusica() {
   if (!musicaAtiva) return;
   musicaAtiva = false;
+  if (fonteMusica && ganhoMusica) {                      // some suave e para
+    try {
+      const ctxA = Som.ligar(), agora = ctxA.currentTime;
+      ganhoMusica.gain.setValueAtTime(ganhoMusica.gain.value, agora);
+      ganhoMusica.gain.linearRampToValueAtTime(0, agora + 0.6);
+      const f = fonteMusica;
+      setTimeout(() => { try { f.stop(); f.disconnect(); } catch (e) {} }, 700);
+      fonteMusica = null; ganhoMusica = null;
+    } catch (e) { pararFonteMusica(); }
+    return;
+  }
   const passo = musica.volume / 12;
   const esmaece = setInterval(() => {                    // desliga suave
     musica.volume = Math.max(0, musica.volume - passo);
@@ -100,6 +168,13 @@ function pararMusica() {
 
 function sincronizarMusica() {                           // segue o botão de som
   if (!musicaAtiva) return;
+  if (ganhoMusica) {                                     // caminho Web Audio
+    try {
+      const ctxA = Som.ligar();
+      ganhoMusica.gain.setTargetAtTime(Som.ligado ? 0.75 : 0, ctxA.currentTime, 0.05);
+    } catch (e) {}
+    return;
+  }
   musica.muted = !Som.ligado;
   if (Som.ligado && musica.paused) { const p = musica.play(); if (p && p.catch) p.catch(() => {}); }
 }
@@ -745,6 +820,14 @@ if (btnElenco) btnElenco.onclick = () => {
   Progresso.salvar();
   montarGradeTimes();
 };
+
+/* Tocar no contador de raios explica de onde vêm as cargas. Era a
+   pergunta óbvia e não tinha resposta em lugar nenhum do jogo. */
+const caixaCargas = document.querySelector('.cargasCaixa');
+if (caixaCargas) {
+  caixaCargas.title = t('howCharges');
+  caixaCargas.onclick = () => { Som.botao(); mostrarAviso(t('howCharges'), '', 4200); };
+}
 
 const btnTela = document.getElementById('btnTela');
 if (btnTela) btnTela.onclick = async () => {
