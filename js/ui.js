@@ -746,6 +746,14 @@ if (btnElenco) btnElenco.onclick = () => {
   montarGradeTimes();
 };
 
+/* Tocar no contador de raios explica de onde vêm as cargas. Era a
+   pergunta óbvia e não tinha resposta em lugar nenhum do jogo. */
+const caixaCargas = document.querySelector('.cargasCaixa');
+if (caixaCargas) {
+  caixaCargas.title = t('howCharges');
+  caixaCargas.onclick = () => { Som.botao(); mostrarAviso(t('howCharges'), '', 4200); };
+}
+
 const btnTela = document.getElementById('btnTela');
 if (btnTela) btnTela.onclick = async () => {
   Som.botao();

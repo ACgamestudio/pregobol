@@ -266,6 +266,33 @@ for (const campo of ['rua', 'estadio']) {
   console.log(`${campo.padEnd(8)} ${tiros} shots -> ${quases} near misses, ${gols} goals`);
 }
 
+console.log('\n--- ritmo de cargas: quantas partidas ate poder usar um especial ---');
+for (const campo of ['rua', 'estadio']) {
+  let cargasTotais = 0, gols = 0, dourados = 0, partidas = 6;
+  for (let p = 0; p < partidas; p++) {
+    G.campoAtual = campo; G.nivel = 'hard'; G.modo = 'ia';
+    G.tampas[1] = 'classica'; G.tampas[2] = 'classica';
+    G.Modo.rapida(); G.novaPartida({ alvo: 3 }); G.Especiais.zerar();
+    let f = 0;
+    while (f < 60 && G.fase !== 'fim') {
+      const e = G.melhorJogada(G.jogador);
+      G.fase = 'mirando';
+      G.chutar(G.jogador, e.ang + (Math.random() - .5) * 0.1, e.forca, null);
+      f++;
+      let n = 0; while (G.fase === 'rolando' && n < 900) { G.passo(); n++; }
+      if (G.fase === 'pausa') { G.bola.x = 390; G.bola.y = 235; G.fase = 'mirando'; }
+      if (G.fase !== 'fim') G.fase = 'mirando';
+    }
+    cargasTotais += G.Especiais.cargas[1] + G.Especiais.cargas[2];
+    gols += G.placar[1] + G.placar[2];
+    dourados += G.Stats.d[1].dourados + G.Stats.d[2].dourados;
+  }
+  const porPartida = (cargasTotais / partidas).toFixed(1);
+  console.log(`${campo.padEnd(8)} ${porPartida} cargas por partida  ` +
+              `(${(gols / partidas).toFixed(1)} gols, ${(dourados / partidas).toFixed(1)} dourados)  ` +
+              `-> POWER custa 2`);
+}
+
 console.log('\n--- special shots ---');
 G.Especiais.zerar();
 console.log('armar with no charges:', G.Especiais.armar(1, 'power'));
