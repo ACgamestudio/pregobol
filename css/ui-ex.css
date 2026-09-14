@@ -119,6 +119,7 @@ body.jogando .cenario{opacity:1;}
 /* ================= special shot bar (spec §6) ================= */
 .especiais{display:flex;align-items:center;gap:5px;}
 .especiais button{
+  position:relative;
   width:34px;height:32px;padding:0;font-size:14px;line-height:1;
   display:grid;place-items:center;opacity:.4;filter:grayscale(1);
   transition:opacity .15s,filter .15s,box-shadow .15s,transform .12s;
@@ -130,6 +131,7 @@ body.jogando .cenario{opacity:1;}
 .cargasCaixa{
   display:flex;align-items:baseline;gap:4px;font-family:var(--arcade);
   font-size:11px;letter-spacing:.12em;color:#9C8468;text-transform:uppercase;
+  cursor:help;transition:transform .2s ease;
 }
 .cargasCaixa b{font-size:17px;color:var(--ouro);font-variant-numeric:tabular-nums;}
 @media (max-height:480px){
@@ -225,9 +227,9 @@ body.jogando .cenario{opacity:1;}
 .onEstado{ min-height:18px; font-size:12.5px; color:#C9B08E; text-align:center; }
 
 /* next-track button */
-#btnFaixa{ min-width:42px; padding-left:10px; padding-right:10px; }
+#btnFaixa{ min-width:42px; padding-left:10px; padding-right:10px;
+           transition:transform .18s ease, border-color .18s ease; }
 #btnFaixa.pulsa{ transform:scale(1.18); border-color:var(--ouro); }
-#btnFaixa{ transition:transform .18s ease, border-color .18s ease; }
 
 /* ===================================================================
    End of match: the panel drops to the bottom so the winning club's
@@ -258,7 +260,7 @@ body.jogando .cenario{opacity:1;}
 }
 .tela.fim .cartaz h2,
 .tela.fim .cartaz .sub{ text-shadow:0 2px 6px rgba(0,0,0,.85); }
-.tela.fim .stats .col{ background:rgba(0,0,0,.34); }
+.tela.fim .stats .col{ background:rgba(0,0,0,.34); padding:7px 9px; }
 
 /* Sem suporte a blur, escurece um pouco mais pra não perder o texto. */
 @supports not (backdrop-filter: blur(4px)){
@@ -266,7 +268,6 @@ body.jogando .cenario{opacity:1;}
 }
 .tela.fim .cartaz h2{ font-size:clamp(20px,4.6vw,32px); }
 .tela.fim .stats{ margin:10px 0 4px; gap:8px; }
-.tela.fim .stats .col{ padding:7px 9px; }
 
 /* the champion overlay has to sit above the board but below the panel */
 .campeao{ z-index:6; }
@@ -281,13 +282,16 @@ body.jogando .cenario{opacity:1;}
 /* sheet switch on the team screen */
 .trocaElenco{
   position:absolute; right:2.6%; top:5.4%; z-index:4;
-  font-family:var(--arcade); font-size:13px; letter-spacing:.12em;
-  padding:7px 14px; border-radius:10px; cursor:pointer; color:#F6EEE0;
+  /* o rótulo tem três palavras ("TIMES DO BRASIL"): espaçamento menor e
+     nada de quebrar em duas linhas no meio da arte */
+  font-family:var(--arcade); font-size:12px; letter-spacing:.06em;
+  white-space:nowrap;
+  padding:7px 13px; border-radius:10px; cursor:pointer; color:#F6EEE0;
   border:2px solid rgba(255,210,74,.5); background:rgba(10,7,5,.66);
   backdrop-filter:blur(2px); transition:transform .15s ease, border-color .15s ease;
 }
 .trocaElenco:hover{ transform:scale(1.06); border-color:var(--ouro); }
-@media (max-width:560px){ .trocaElenco{ font-size:11px; padding:5px 10px; } }
+@media (max-width:560px){ .trocaElenco{ font-size:9.5px; padding:5px 8px; letter-spacing:.03em; } }
 
 /* botão de tela cheia: só aparece quando NÃO estamos em tela cheia */
 #btnTela{ min-width:42px; padding-left:10px; padding-right:10px; }
@@ -301,10 +305,30 @@ body.jogando .cenario{opacity:1;}
   35%{ transform:scale(1.42); filter:drop-shadow(0 0 10px var(--ouro)); }
   100%{ transform:scale(1); }
 }
-.cargasCaixa{ cursor:help; transition:transform .2s ease; }
-.especiais button{ position:relative; }
 .especiais button::after{
   content:attr(data-custo); position:absolute; right:2px; bottom:0;
   font-size:9px; font-weight:800; color:var(--ouro); opacity:.85;
 }
 .especiais button:not(.pode){ opacity:.38; }
+
+/* ===================================================================
+   Clarão do gol. Cobre a viewport inteira por uns 300 ms e some. Fica
+   por cima de tudo menos dos painéis de fim de jogo, e nunca intercepta
+   toque: o jogador pode seguir mirando enquanto ele apaga.
+   =================================================================== */
+.flashGol{
+  position:fixed; inset:0; z-index:35; pointer-events:none;
+  background:#fff; opacity:0;
+}
+.flashGol.bate{ animation:golLampejo .34s ease-out; }
+@keyframes golLampejo{
+  0%{ opacity:0; }
+  12%{ opacity:.92; }
+  40%{ opacity:.45; }
+  100%{ opacity:0; }
+}
+/* quem pediu menos animação leva um clarão discreto, não um estrobo */
+@media (prefers-reduced-motion:reduce){
+  .flashGol.bate{ animation:golLampejoSuave .3s ease-out; }
+  @keyframes golLampejoSuave{ 0%{opacity:0;} 25%{opacity:.28;} 100%{opacity:0;} }
+}

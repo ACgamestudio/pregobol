@@ -17,7 +17,6 @@ const FX = (() => {
   let sacudida = 0;                      // screen shake amplitude, px
   let flash = 0;                         // white flash 0..1
   let ondas = [];                        // anéis de choque do gol
-  let foco = 0, focoXY = null;           // holofote: escurece a volta, não clareia tudo
   let lento = 0;                         // remaining slow-motion time, frames
   let cam = null;                        // { fx, fy, zoom, vida, max }
   let leve = false;                      // low-power mode: fewer particles
@@ -62,14 +61,10 @@ const FX = (() => {
   }
   /* O gol.
 
-     A versão anterior resolvia com dois lavados de branco somados, e o
-     resultado era meia tela estourada por quase meio segundo. Aqui a
-     lógica é invertida: em vez de clarear tudo, ESCURECE a periferia e
-     deixa o gol aceso. O olho vai pro lugar certo em vez de piscar.
-
-     Camadas, em ordem de leitura: estouro de partículas nas cores do
-     clube, três anéis de choque saindo do ponto do gol, holofote
-     fechando em volta, e um clarão curtíssimo só pra marcar o impacto. */
+     Nada de escurecer a tela: o holofote que fechava em volta do gol
+     saiu daqui. O que carrega o momento agora é o estouro de partículas
+     nas cores do clube, três anéis de choque saindo do ponto do gol, e
+     um clarão branco curto e forte por cima de tudo. */
   function golExplosao(x, y, cores) {
     solta(x, y, 54, cores[0], 3.6);
     solta(x, y, 34, cores[1] || '#FFD24A', 2.8);
@@ -81,9 +76,8 @@ const FX = (() => {
         cor: (i === 1 ? (cores[1] || '#FFD24A') : cores[0])
       });
     }
-    foco = 1; focoXY = { x: x, y: y };
     sacudir(13);
-    flash = 0.55;                        // era 1: o clarão agora é acento, não protagonista
+    flash = 1;                           // clarão cheio: é ele que marca o gol
   }
   function sacudir(v) { sacudida = Math.min(16, Math.max(sacudida, v)); }
   function devagar(frames) { lento = Math.max(lento, frames); }
@@ -91,9 +85,10 @@ const FX = (() => {
 
   /* Two at a time is the ceiling — the brief is explicit about not
      flooding the screen with messages. */
-  function grito(texto, sub, cor) {
+  function grito(texto, sub, cor, grande) {
     if (gritos.length >= 2) gritos.shift();
-    gritos.push({ texto, sub: sub || '', cor: cor || '#FFF6DC', vida: 1, decai: 0.011 });
+    gritos.push({ texto, sub: sub || '', cor: cor || '#FFF6DC',
+                  vida: 1, decai: grande ? 0.009 : 0.011, grande: !!grande });
   }
 
   /* ---------------- per-frame ---------------- */
@@ -114,8 +109,7 @@ const FX = (() => {
       if (gritos[i].vida <= 0) gritos.splice(i, 1);
     }
     if (sacudida > 0) { sacudida *= 0.87; if (sacudida < 0.3) sacudida = 0; }
-    if (flash > 0) flash = Math.max(0, flash - 0.085 * k);   // some rápido
-    if (foco > 0) foco = Math.max(0, foco - 0.013 * k);
+    if (flash > 0) flash = Math.max(0, flash - 0.075 * k);   // some rápido
     for (let i = ondas.length - 1; i >= 0; i--) {
       const o = ondas[i];
       o.r += o.vel * k;
@@ -174,16 +168,26 @@ const FX = (() => {
       ctx.translate(W / 2, y);
       ctx.scale(esc, esc);
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = `bold 38px ${FONTE_ARCADE}`;
+      /* O grito do gol vem em destaque: corpo grande, limitado à largura
+         da tela pra nunca vazar pelas bordas em celular. */
+      let corpo = g.grande ? Math.min(96, Math.max(44, W * 0.13)) : 38;
+      ctx.font = `bold ${corpo}px ${FONTE_ARCADE}`;
+      if (g.grande) {
+        const larg = ctx.measureText(g.texto).width;
+        const teto = W * 0.88;
+        if (larg > teto) { corpo *= teto / larg; ctx.font = `bold ${corpo}px ${FONTE_ARCADE}`; }
+      }
       ctx.lineJoin = 'round';
-      ctx.lineWidth = 8; ctx.strokeStyle = 'rgba(12,8,4,.92)';
+      ctx.lineWidth = g.grande ? corpo * 0.17 : 8;
+      ctx.strokeStyle = 'rgba(12,8,4,.92)';
       ctx.strokeText(g.texto, 0, 0);
       ctx.fillStyle = g.cor; ctx.fillText(g.texto, 0, 0);
       if (g.sub) {
+        const baixo = g.grande ? corpo * 0.72 : 26;
         ctx.font = `bold 15px ${FONTE_ARCADE}`;
         ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(12,8,4,.9)';
-        ctx.strokeText(g.sub, 0, 26);
-        ctx.fillStyle = 'rgba(255,246,220,.92)'; ctx.fillText(g.sub, 0, 26);
+        ctx.strokeText(g.sub, 0, baixo);
+        ctx.fillStyle = 'rgba(255,246,220,.92)'; ctx.fillText(g.sub, 0, baixo);
       }
       ctx.restore();
     });
@@ -203,20 +207,8 @@ const FX = (() => {
     ctx.globalAlpha = 1;
   }
 
-  /* Holofote. Transparente no ponto do gol, escuro nas bordas — o
-     contrário do lavado de branco que estava aqui antes. */
-  function desenharFoco(ctx, W, H) {
-    if (foco <= 0 || !focoXY) return;
-    const raio = Math.max(W, H) * 0.60;
-    const g = ctx.createRadialGradient(focoXY.x, focoXY.y, 18, focoXY.x, focoXY.y, raio);
-    g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(0.45, `rgba(6,4,3,${foco * 0.26})`);
-    g.addColorStop(1, `rgba(4,3,2,${foco * 0.62})`);
-    ctx.fillStyle = g;
-    ctx.fillRect(-W, -H, W * 3, H * 3);
-  }
-  function limpar() { particulas = []; gritos = []; sacudida = 0; flash = 0; lento = 0; cam = null; ondas = []; foco = 0; focoXY = null; }
+  function limpar() { particulas = []; gritos = []; sacudida = 0; flash = 0; lento = 0; cam = null; ondas = []; }
 
-  return { solta, leque, impacto, golExplosao, desenharOndas, desenharFoco, sacudir, devagar, focar, grito,
+  return { solta, leque, impacto, golExplosao, desenharOndas, sacudir, devagar, focar, grito,
            escala, atualizar, aplicarCamera, desenhar, desenharGritos, brilho, limpar };
 })();

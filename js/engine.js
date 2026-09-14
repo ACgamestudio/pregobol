@@ -128,7 +128,6 @@ let fase = 'mirando';                   // mirando | rolando | pausa | fim | ia
 let mira = null;
 let relogio = 0;                        // physics ticks since the flick left
 let mostrarMira = true;                 // the aim beam; off = read the table yourself
-let brilhoGol = 0;
 let inicioDaJogada = 0;
 let miraIA = null;
 let fantasma = null;                    // simulated trajectory (precision shot)
@@ -704,6 +703,17 @@ function recomecarDoMeio(quemComeca) {
   atualizarHUD(); talvezIA();
 }
 
+/* Lampejo branco sobre a página inteira — placar, cenário e mesa. É um
+   elemento só, reaproveitado: reiniciar a animação exige tirar a classe,
+   forçar um reflow e devolver, senão o segundo gol seguido não pisca. */
+function lampejoTela() {
+  const el = document.getElementById('flashGol');
+  if (!el) return;
+  el.classList.remove('bate');
+  void el.offsetWidth;
+  el.classList.add('bate');
+}
+
 function registrarGol(dono) {
   bola.vx = bola.vy = 0; bola.giro = 0;
   fase = 'pausa';
@@ -712,24 +722,23 @@ function registrarGol(dono) {
   const gx = dono === 1 ? CAMPO.x + CAMPO.w : CAMPO.x;
   const distGol = Math.hypot(gx - Jogada.x0, CY - Jogada.y0);
   const combo = Jogada.avaliar(distGol);
-  const grito = sorteio(t('goalCries'));
   Stats.gol(dono);
   Stats.quiques(dono, Jogada.rebotes);
+  /* Um grito só, grande, sempre o mesmo: GOOOOOL. Se a jogada foi um
+     combo o nome dele vem miúdo embaixo, sem roubar a cena. */
   if (combo) {
     Stats.combo(dono);
     Especiais.ganhar(dono, combo.cargas);
     setTimeout(() => avisarCarga(dono, combo.cargas), 700);
-    FX.grito(t(combo.chave), grito, '#FFD24A');
-  } else {
-    FX.grito(grito, '', '#FFF6DC');
   }
+  FX.grito(t('goal'), combo ? t(combo.chave) : '', '#FFF6DC', true);
 
   /* --- the goal itself (spec §5) --- */
   const cl = clube(dono), cp = tampaDe(dono);
   FX.golExplosao(bola.x, bola.y, [cl.c1, cp.c1]);
   FX.devagar(34);
   FX.focar(bola.x, bola.y, 1.28, 52);
-  brilhoGol = 1;
+  lampejoTela();
   Som.gol();
 
   /* --- a challenge is decided by the goal, not by the score --- */
@@ -1468,17 +1477,15 @@ function laco(agora) {
   desenharMiraIA();
   FX.desenhar(ctx);
   FX.desenharOndas(ctx);
-  FX.desenharFoco(ctx, W, H);
-  /* O lavado branco sobre a mesa saiu daqui: somado ao brilho global ele
-     chegava a 0,52 de branco puro e estourava metade do tabuleiro. Quem
-     carrega o momento agora são os anéis e o holofote. */
-  if (brilhoGol > 0) brilhoGol -= .05 * k;
   ctx.restore();
 
+  /* Clarão do gol. Fora do save() da câmera de propósito: ele cobre a
+     mesa inteira sem tremer junto com o screen shake. O lampejo do
+     lampejoTela() cobre o resto da página. */
   const f = FX.brilho();
   if (f > 0) {
     ctx.save();
-    ctx.fillStyle = `rgba(255,255,255,${f * .10})`;
+    ctx.fillStyle = `rgba(255,255,255,${f * .55})`;
     ctx.fillRect(0, 0, W, H);
     ctx.restore();
   }

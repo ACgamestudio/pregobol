@@ -49,7 +49,7 @@ en: {
   scores: 'valid goal!', thinking: 'AI thinking…', over: 'Full time',
 
   /* --- goals (§5) --- */
-  goal: 'GOAL!',
+  goal: 'GOOOOOAL!',
   goalCries: ['GOAL!', 'WHAT A SHOT!', 'PERFECT!', 'UNBELIEVABLE!',
               'WHAT A GOAL!', 'TOP CORNER!', 'THAT WAS CLEAN!'],
   goalFor: n => `Point for ${n}`,
@@ -123,7 +123,7 @@ pt: {
   player1: 'JOGADOR 1', player2: 'JOGADOR 2',
   turn: 'Vez de', yourTurn: 'SUA VEZ', aim: 'MIRA', power: 'FORÇA', shoot: 'CHUTA!',
   scores: 'vale gol!', thinking: 'IA pensando…', over: 'Fim',
-  goal: 'GOL!',
+  goal: 'GOOOOOL!',
   goalCries: ['GOL!', 'QUE CHUTE!', 'PERFEITO!', 'INACREDITÁVEL!',
               'QUE GOL!', 'NO ÂNGULO!', 'QUE LIMPEZA!'],
   goalFor: n => `Ponto do ${n}`,
