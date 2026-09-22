@@ -30,6 +30,8 @@
      desenfileirar()        -> Promise
      pegarDaFila()          -> Promise<cod|null>  atomically claim one
      sair(cod, sou)         -> Promise
+     enviarAudio(cod, a)    -> Promise            a = {de, mime, d(base64), dur}
+     ouvirAudios(cod, cb)   -> unsubscribe        cb(a)
    ------------------------------------------------------------------ */
 
 const TransporteFirebase = {
@@ -118,6 +120,16 @@ const TransporteFirebase = {
     return null;
   },
 
+  async enviarAudio(cod, a) {
+    await this.r('salas/' + cod + '/audios').push(a);
+  },
+
+  ouvirAudios(cod, cb) {
+    const ref = this.r('salas/' + cod + '/audios');
+    const h = ref.on('child_added', s => cb(s.val()));
+    return () => ref.off('child_added', h);
+  },
+
   async sair(cod, sou) {
     if (!cod) return;
     try { await this.r('salas/' + cod + '/vivo/' + sou).remove(); } catch (e) {}
@@ -145,7 +157,9 @@ const TransporteAppsScript = {
   url: '', uid: null,
   INTERVALO: 1800,        // ms entre consultas
   QUEDA_MS: 16000,        // sem sinal por mais que isso = saiu
-  _timer: null, _cbSala: null, _cbJogadas: null, _desde: -1, _cod: null,
+  TEMPO_MAX: 15000,       // uma requisição pendurada não pode travar o polling
+  _timer: null, _cbSala: null, _cbJogadas: null, _cbAudio: null,
+  _desde: -1, _desdeA: -1, _cod: null, _visto: null, _falhas: 0,
 
   async conectar(cfg) {
     this.url = (cfg && cfg.url) || APPS_SCRIPT_URL;
@@ -156,14 +170,24 @@ const TransporteAppsScript = {
   /* text/plain de propósito: com application/json o navegador manda um
      OPTIONS de preflight, e o Apps Script não responde OPTIONS. */
   async chamar(dados) {
-    const r = await fetch(this.url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(dados),
-      redirect: 'follow'
-    });
-    if (!r.ok) throw new Error('http ' + r.status);
-    return await r.json();
+    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const t = ctl ? setTimeout(() => ctl.abort(), this.TEMPO_MAX) : null;
+    try {
+      const r = await fetch(this.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(dados),
+        redirect: 'follow',
+        signal: ctl ? ctl.signal : undefined
+      });
+      if (!r.ok) throw new Error('http ' + r.status);
+      const txt = await r.text();
+      /* Se a implantação não estiver como "Qualquer pessoa", o Google
+         devolve uma página HTML de login em vez de JSON. Dizer isso
+         poupa uma tarde de depuração. */
+      try { return JSON.parse(txt); }
+      catch (e) { throw new Error('o Apps Script respondeu HTML, não JSON — confira se a implantação está como "Qualquer pessoa"'); }
+    } finally { if (t) clearTimeout(t); }
   },
 
   async criarSala(cod, dados) {
@@ -188,9 +212,16 @@ const TransporteAppsScript = {
   traduzir(s, agora) {
     if (!s) return null;
     const vivo = {};
+    this._visto = this._visto || {};
     ['1', '2'].forEach(k => {
-      const t = s.vivo && s.vivo[k];
-      if (t && (agora - t) < this.QUEDA_MS) vivo[k] = true;
+      /* Presença mora no CacheService, que pode despejar uma chave.
+         Chave ausente = sem notícia nova: vale o último carimbo visto.
+         Só saída explícita (s.saiu) ou silêncio longo derrubam. */
+      let t = s.vivo && s.vivo[k];
+      if (t) this._visto[k] = Math.max(this._visto[k] || 0, t);
+      else t = this._visto[k];
+      const saiu = s.saiu && s.saiu[k];
+      if (t && !saiu && (agora - t) < this.QUEDA_MS) vivo[k] = true;
     });
     return { host: s.host, visitante: s.visitante, cfg: s.cfg, cfgB: s.cfgB,
              vivo: vivo, criada: s.criada };
@@ -210,13 +241,26 @@ const TransporteAppsScript = {
     return () => { this._cbJogadas = null; this.pararSePreciso(); };
   },
 
+  ouvirAudios(cod, cb) {
+    this._cod = cod; this._cbAudio = cb;
+    this.iniciarLoop();
+    return () => { this._cbAudio = null; this.pararSePreciso(); };
+  },
+
+  async enviarAudio(cod, a) {
+    const r = await this.chamar({ acao: 'audio', cod: cod, sou: a.de,
+                                  mime: a.mime, d: a.d, dur: a.dur });
+    if (!r.ok) throw new Error(r.motivo || 'áudio não enviado');
+  },
+
   iniciarLoop() {
     if (this._timer) return;
     const passo = async () => {
       if (!this._cod) return;
       try {
         const r = await this.chamar({ acao: 'sync', cod: this._cod,
-                                      sou: Rede.sou || 0, desde: this._desde });
+                                      sou: Rede.sou || 0, desde: this._desde,
+                                      desdeA: this._desdeA });
         this._falhas = 0;
         if (r.ok) {
           if (this._cbSala) this._cbSala(this.traduzir(r.sala, r.agora));
@@ -228,6 +272,8 @@ const TransporteAppsScript = {
               if (m) this._cbJogadas(j.n, m);
             }
           });
+          (r.audios || []).forEach(a => { if (this._cbAudio) this._cbAudio(a); });
+          if (typeof r.an === 'number') this._desdeA = Math.max(this._desdeA, r.an - 1);
         } else if (this._cbSala) {
           this._cbSala(null);              // sala sumiu
         }
@@ -239,14 +285,13 @@ const TransporteAppsScript = {
         if (this._falhas === 3 && Rede.ao.erro)
           Rede.ao.erro(new Error('sem resposta do servidor: ' + (e.message || e)));
       }
-      if (!this._erroAtual) this._falhas = 0;
       if (this._timer) this._timer = setTimeout(passo, this.INTERVALO);
     };
     this._timer = setTimeout(passo, 0);
   },
 
   pararSePreciso() {
-    if (this._cbSala || this._cbJogadas) return;
+    if (this._cbSala || this._cbJogadas || this._cbAudio) return;
     if (this._timer) { clearTimeout(this._timer); this._timer = null; }
   },
 
@@ -266,7 +311,8 @@ const TransporteAppsScript = {
 
   async sair(cod, sou) {
     if (this._timer) { clearTimeout(this._timer); this._timer = null; }
-    this._cbSala = this._cbJogadas = null; this._cod = null; this._desde = -1;
+    this._cbSala = this._cbJogadas = this._cbAudio = null; this._cod = null;
+    this._desde = -1; this._desdeA = -1; this._visto = null; this._falhas = 0;
     if (cod) { try { await this.chamar({ acao: 'sair', cod: cod, sou: sou }); } catch (e) {} }
   }
 };
@@ -307,6 +353,12 @@ const TransporteLoop = {
   async enfileirar(cod) { this.mundo.fila.push(cod); },
   async desenfileirar() {},
   async pegarDaFila() { return this.mundo.fila.shift() || null; },
+  async enviarAudio(cod, a) { (this.mundo.ouvintesA && this.mundo.ouvintesA[cod] || []).forEach(cb => cb(a)); },
+  ouvirAudios(cod, cb) {
+    this.mundo.ouvintesA = this.mundo.ouvintesA || {};
+    (this.mundo.ouvintesA[cod] = this.mundo.ouvintesA[cod] || []).push(cb);
+    return () => {};
+  },
   async sair(cod, sou) { const s = this._s(cod); if (s) delete s.vivo[sou]; this._avisar(cod); }
 };
 
@@ -326,7 +378,8 @@ const Rede = {
   emCurso: null,       // my own flick, waiting for its outcome
   cfgSala: null,
 
-  ao: { pronto: null, oponente: null, jogada: null, saiu: null, erro: null, fila: null },
+  ao: { pronto: null, oponente: null, jogada: null, saiu: null, erro: null, fila: null,
+        audio: null, fim: null },
 
   usar(t) { this.T = t; return this; },
 
@@ -404,6 +457,7 @@ const Rede = {
   _ouvir() {
     if (this._offSala) this._offSala();
     if (this._offJog) this._offJog();
+    if (this._offAudio) this._offAudio();
 
     this._offSala = this.T.ouvirSala(this.sala, s => {
       if (!s) { this._quedou(); return; }
@@ -427,6 +481,25 @@ const Rede = {
       this.turno = Math.max(this.turno, n + 1);
       if (this.ao.jogada) this.ao.jogada(m);
     });
+
+    this._offAudio = this.T.ouvirAudios ? this.T.ouvirAudios(this.sala, a => {
+      if (!a || Number(a.de) === this.sou || !a.d) return;   // meu próprio eco
+      if (this.ao.audio) this.ao.audio(a);
+    }) : null;
+  },
+
+  /* Mensagem de voz. Vai como base64 dentro do JSON: é o único jeito que
+     o Apps Script aceita sem preflight, e 6s de voz dão poucos KB. */
+  async enviarAudio(blob, dur) {
+    if (!this.ativo || this.estado !== 'jogando') throw new Error('fora de partida');
+    const d = await new Promise((ok, falha) => {
+      const fr = new FileReader();
+      fr.onload = () => ok(String(fr.result).split(',')[1] || '');
+      fr.onerror = () => falha(new Error('não consegui ler o áudio'));
+      fr.readAsDataURL(blob);
+    });
+    const mime = (blob.type || 'audio/webm').split(';')[0];
+    await this.T.enviarAudio(this.sala, { de: this.sou, mime: mime, d: d, dur: Math.round(dur || 0) });
   },
 
   _quedou() {
@@ -462,6 +535,9 @@ const Rede = {
     this.emCurso = null; this.pendente = null;
     if (this._offSala) this._offSala();
     if (this._offJog) this._offJog();
+    if (this._offAudio) this._offAudio();
+    this._offSala = this._offJog = this._offAudio = null;
+    if (this.ao.fim) this.ao.fim();
     if (this.publica) { try { await this.T.desenfileirar(); } catch (e) {} }
     try { await this.T.sair(s, eu); } catch (e) {}
   }

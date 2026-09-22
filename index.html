@@ -345,6 +345,16 @@
   .girar .ico{font-size:56px;animation:gira 2s ease-in-out infinite;}
   @keyframes gira{0%,45%{transform:rotate(0);}55%,100%{transform:rotate(90deg);}}
   body.jogando .girar.ativa{display:flex;}
+
+  /* ================= voz ================= */
+  #btnVoz{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+          position:relative;min-width:42px;}
+  #btnVoz.oculta{display:none;}
+  #btnVoz.gravando{background:#EC5648;border-color:#FF8A7E;color:#fff;animation:vozPulso .9s ease-in-out infinite;}
+  #btnVoz.enviando{opacity:.55;}
+  #btnVoz.tocando{background:#3E7C4A;border-color:#6FBF7E;}
+  #btnVoz .vozBarra{position:absolute;left:0;bottom:0;height:3px;background:#fff;border-radius:0 0 8px 8px;width:0;}
+  @keyframes vozPulso{0%,100%{box-shadow:0 0 0 0 rgba(236,86,72,.7);}50%{box-shadow:0 0 0 7px rgba(236,86,72,0);}}
 </style>
 <link rel="stylesheet" href="css/ui-ex.css">
 </head>
@@ -400,6 +410,8 @@
   <button id="btnNovo">↺ New match</button>
   <button id="btnFaixa" title="Next track">🎵</button>
   <button id="btnTela" title="Fullscreen">⛶</button>
+  <!-- voz: só aparece em partida online. Segure pra falar, solte pra enviar. -->
+  <button id="btnVoz" class="oculta" title="Hold to talk" aria-label="Hold to talk">🎙️</button>
 
   <!-- special shots: earned, spent, never free (spec §6) -->
   <div class="cargasCaixa"><b id="cargas">0</b><span>⚡</span></div>
