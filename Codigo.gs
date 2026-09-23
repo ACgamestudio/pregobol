@@ -128,6 +128,12 @@ function processar(req) {
     return comTrava(function () {
       var s = lerSala(req.cod);
       if (!s) return { ok: false, motivo: 'inexistente', agora: agora };
+      /* Segunda tentativa do MESMO jogador (a primeira demorou e ele
+         apertou de novo): já é dele, então é sucesso, não "cheia". */
+      if (s.visitante && s.visitante === req.uid) {
+        marcarVivo(req.cod, '2', agora);
+        return { ok: true, sala: comVivo(req.cod, s), agora: agora };
+      }
       if (s.visitante) return { ok: false, motivo: 'cheia', agora: agora };
       s.visitante = req.uid || '?';
       s.cfgB = req.cfg ? JSON.parse(req.cfg) : (req.dados || null);

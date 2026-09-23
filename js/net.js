@@ -164,7 +164,13 @@ const TransporteAppsScript = {
   async conectar(cfg) {
     this.url = (cfg && cfg.url) || APPS_SCRIPT_URL;
     if (!this.url) throw new Error('APPS_SCRIPT_URL vazia');
-    this.uid = 'u' + Math.random().toString(36).slice(2, 10);
+    let uid = null;
+    try { uid = localStorage.getItem('pregobol_uid'); } catch (e) {}
+    if (!uid) {
+      uid = 'u' + Math.random().toString(36).slice(2, 10);
+      try { localStorage.setItem('pregobol_uid', uid); } catch (e) {}
+    }
+    this.uid = uid;
   },
 
   /* text/plain de propósito: com application/json o navegador manda um
@@ -201,10 +207,18 @@ const TransporteAppsScript = {
     return r.ok ? this.traduzir(r.sala, r.agora) : null;
   },
 
+  /* Guarda o motivo da recusa: "não existe" e "cheia" pedem respostas
+     diferentes do jogador. Trava ocupada é passageira: tenta de novo. */
   async entrarSala(cod, dados) {
-    const r = await this.chamar({ acao: 'entrar', cod: cod, uid: this.uid,
-                                  cfg: JSON.stringify(dados || {}) });
-    return !!r.ok;
+    for (let i = 0; i < 3; i++) {
+      const r = await this.chamar({ acao: 'entrar', cod: cod, uid: this.uid,
+                                    cfg: JSON.stringify(dados || {}) });
+      if (r.ok) { this.motivo = null; return true; }
+      this.motivo = r.motivo || r.erro || 'falhou';
+      if (r.erro !== 'ocupado') return false;
+      await new Promise(ok => setTimeout(ok, 800));
+    }
+    return false;
   },
 
   /* Formato do Firebase pra cima: vivo vira booleano, e é aqui que a
@@ -407,9 +421,12 @@ const Rede = {
   ESPERA_MAX: 45000,
   _vigiar() {
     clearTimeout(this._vigia);
+    /* Quem criou a sala está mandando o link no WhatsApp: esperar é o
+       normal, não um erro. Só o visitante tem prazo. */
+    if (this.sou === 1) return;
     this._vigia = setTimeout(() => {
       if (this.estado !== 'jogando' && this.ativo && this.ao.erro)
-        this.ao.erro(new Error('ninguém entrou na sala'));
+        this.ao.erro(new Error(typeof t === 'function' ? t('hostAway') : 'host away'));
     }, this.ESPERA_MAX);
   },
 
@@ -419,6 +436,7 @@ const Rede = {
     this.turno = 0; this.aplicado = -1;
     await this.T.criarSala(this.sala, { cfg: cfg });
     if (publica) await this.T.enfileirar(this.sala);
+    if (!publica) this._lembrar();
     this.estado = 'esperando';
     this._ouvir();
     this._vigiar();
@@ -428,6 +446,7 @@ const Rede = {
   async entrar(cod, cfgB) {
     cod = String(cod || '').toUpperCase().trim();
     const ok = await this.T.entrarSala(cod, cfgB);
+    this.motivo = ok ? null : (this.T.motivo || null);
     if (!ok) return false;
     this.sala = cod; this.sou = 2; this.ativo = true;
     this.turno = 0; this.aplicado = -1;
@@ -438,6 +457,30 @@ const Rede = {
     this.estado = 'esperando';
     this._ouvir();
     this._vigiar();
+    return true;
+  },
+
+  /* Celular: ir pro WhatsApp mandar o link pode fazer o navegador
+     descartar a aba. Na volta a página recarrega do zero e a sala criada
+     ficava órfã. Guardando o código, o anfitrião retoma a mesma sala. */
+  _lembrar() {
+    try { localStorage.setItem('pregobol_sala', JSON.stringify({ cod: this.sala, t: Date.now() })); } catch (e) {}
+  },
+  _esquecer() { try { localStorage.removeItem('pregobol_sala'); } catch (e) {} },
+  salaLembrada() {
+    try {
+      const x = JSON.parse(localStorage.getItem('pregobol_sala') || 'null');
+      if (x && x.cod && Date.now() - x.t < 20 * 60 * 1000) return x.cod;
+    } catch (e) {}
+    return null;
+  },
+
+  async retomar(cod) {
+    const s = await this.T.lerSala(cod);
+    if (!s || s.visitante) { this._esquecer(); return false; }
+    this.sala = cod; this.sou = 1; this.ativo = true; this.publica = false;
+    this.turno = 0; this.aplicado = -1; this.estado = 'esperando';
+    this._ouvir();
     return true;
   },
 
@@ -466,6 +509,7 @@ const Rede = {
       if (doisAqui && this.estado !== 'jogando') {
         clearTimeout(this._vigia);
         this.estado = 'jogando';
+        this._esquecer();
         if (this.publica) this.T.desenfileirar();
         if (this.ao.pronto) this.ao.pronto(s);
       } else if (this.estado === 'jogando' && !doisAqui) {
@@ -532,6 +576,7 @@ const Rede = {
     if (!this.ativo) return;
     const s = this.sala, eu = this.sou;
     this.ativo = false; this.estado = 'off'; this.sala = null;
+    this._esquecer();
     this.emCurso = null; this.pendente = null;
     if (this._offSala) this._offSala();
     if (this._offJog) this._offJog();

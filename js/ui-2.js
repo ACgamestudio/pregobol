@@ -292,7 +292,9 @@ async function iniciar() {
   /* A abertura fica LIGADA por padrão: ela é parte da cara do jogo, não
      um custo de carregamento. Quem quiser ir direto ao menu desliga no
      card ABERTURA — decisão do jogador, não minha. */
-  if (Progresso.dados.abertura === false) {
+  /* Convidado pelo WhatsApp não precisa ver a abertura: o amigo está
+     esperando do outro lado. */
+  if (Progresso.dados.abertura === false || salaConvite) {
     abertura.classList.add('oculta');
     tocarMusica();
     abrirMenu();
@@ -338,6 +340,7 @@ function abrirMenu() {
   menu.classList.remove('oculta');
   document.getElementById('somEstado').textContent = Som.ligado ? t('on') : t('off');
   document.getElementById('nivelEstado').textContent = t(nivel);
+  try { talvezConvite(); } catch (e) {}   // pode ser chamado antes do convite estar pronto
 }
 function fecharTelas() {
   for (const el of [menu, telaTimes, telaCampo, telaTampas, telaDesafios, telaFim]) {
@@ -713,6 +716,62 @@ function mostrarCodigo(cod) {
   if (!onCodigo) return;
   onCodigo.textContent = cod || '';
   onCodigo.classList.toggle('vazio', !cod);
+  const w = document.getElementById('btnWhats');
+  /* só quem CRIOU a sala manda convite */
+  if (w) w.classList.toggle('oculta', !(cod && Rede.sou === 1 && !Rede.publica));
+}
+
+/* ------------------------------------------------------------------
+   Convite pelo WhatsApp: o link abre o jogo com ?sala=ABCD e o convidado
+   cai direto na tela online com o código preenchido — só apertar ENTRAR.
+   ------------------------------------------------------------------ */
+function linkConvite(cod) {
+  return location.origin + location.pathname + '?sala=' + encodeURIComponent(cod);
+}
+
+const btnWhats = document.getElementById('btnWhats');
+if (btnWhats) btnWhats.onclick = () => {
+  const cod = Rede.sala;
+  if (!cod) return;
+  Som.botao();
+  const texto = t('inviteMsg', cod) + '\n' + linkConvite(cod);
+  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+  dizer('comeBack');
+};
+
+/* lido uma vez na carga; a URL é limpa pra que recarregar a página não
+   tente entrar de novo numa sala que já acabou */
+const salaConvite = (() => {
+  try {
+    const c = new URLSearchParams(location.search).get('sala');
+    if (c) history.replaceState(null, '', location.pathname);
+    return c ? c.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4) : null;
+  } catch (e) { return null; }
+})();
+let conviteUsado = false;
+
+/* Chamado pelo abrirMenu. Na primeira vez que o menu aparece: se veio
+   de um convite, vai pra tela online com o código pronto; se eu tinha
+   criado uma sala e o navegador recarregou a aba, retoma a sala. */
+async function talvezConvite() {
+  if (conviteUsado) return;
+  conviteUsado = true;
+  if (salaConvite && salaConvite.length === 4) {
+    abrirOnline();
+    if (onEntrada) onEntrada.value = salaConvite;
+    const b = document.getElementById('btnEntrarSala');
+    if (b) b.classList.add('chamando');
+    dizer('invited');
+    return;
+  }
+  const minha = Rede.salaLembrada();
+  if (!minha) return;
+  abrirOnline();
+  if (!(await ligarRede())) return;
+  try {
+    if (await Rede.retomar(minha)) { mostrarCodigo(minha); dizer('resumed'); }
+    else dizer(null, '');
+  } catch (e) { dizer(null, ''); }
 }
 
 async function ligarRede() {
@@ -977,16 +1036,26 @@ if (btnCriar) btnCriar.onclick = () => tentar(async () => {
 });
 
 const btnEntrar = document.getElementById('btnEntrarSala');
-if (btnEntrar) btnEntrar.onclick = () => tentar(async () => {
+/* A primeira chamada ao Apps Script pode levar vários segundos. Sem esta
+   trava, o segundo toque em ENTRAR chegava depois do primeiro já ter
+   entrado e voltava "sala cheia" — cheia de si mesmo. */
+let entrando = false;
+if (btnEntrar) btnEntrar.onclick = () => { if (entrando) return; entrando = true;
+  tentar(async () => {
   if (!(await ligarRede())) return;
   Som.botao();
   const cod = (onEntrada.value || '').toUpperCase().trim();
   if (cod.length < 4) { dizer('enterCode'); return; }
   dizer('connecting');
   const ok = await Rede.entrar(cod, { tampa: tampas[1] });
-  if (!ok) { dizer('roomGone'); return; }
+  const bE = document.getElementById('btnEntrarSala');
+  if (bE) bE.classList.remove('chamando');
+  if (!ok) {
+    dizer(Rede.motivo === 'cheia' ? 'roomFull' : Rede.motivo === 'inexistente' ? 'roomMissing' : 'roomGone');
+    return;
+  }
   mostrarCodigo(cod);
-});
+}).finally(() => { entrando = false; }); };
 
 const btnProcurar = document.getElementById('btnProcurar');
 if (btnProcurar) btnProcurar.onclick = () => tentar(async () => {

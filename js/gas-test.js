@@ -224,6 +224,16 @@ async function main() {
   const nFinal = JSON.parse(armazem['S_' + cod]).n;
   console.log(`sync não regrava a sala: ${armazem['S_' + cod] === salaDepoisEnviar ? 'ok' : 'FALHOU'} · n ${nAntes} -> ${nFinal}`);
 
+  /* --- entrar duas vezes (toque duplo / primeira resposta lenta) --- */
+  console.log('\n--- entrar duas vezes ---');
+  const codX = 'ZZ22';
+  servidor.processar({ acao: 'criar', cod: codX, uid: 'host', cfg: '{}' });
+  const e1 = servidor.processar({ acao: 'entrar', cod: codX, uid: 'visita', cfg: '{}' });
+  const e2 = servidor.processar({ acao: 'entrar', cod: codX, uid: 'visita', cfg: '{}' });
+  const e3 = servidor.processar({ acao: 'entrar', cod: codX, uid: 'intruso', cfg: '{}' });
+  const e4 = servidor.processar({ acao: 'entrar', cod: 'NNNN', uid: 'visita', cfg: '{}' });
+  console.log(`1a: ${e1.ok} · 2a mesma pessoa: ${e2.ok ? 'ok' : 'FALHOU ' + e2.motivo} · outra pessoa: ${e3.motivo} · inexistente: ${e4.motivo}`);
+
   /* --- matchmaking --- */
   await A.Rede.encerrar(); await B.Rede.encerrar();
   const r1 = await A.Rede.procurar({ campo: 'rua' });

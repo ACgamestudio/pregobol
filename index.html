@@ -355,6 +355,13 @@
   #btnVoz.tocando{background:#3E7C4A;border-color:#6FBF7E;}
   #btnVoz .vozBarra{position:absolute;left:0;bottom:0;height:3px;background:#fff;border-radius:0 0 8px 8px;width:0;}
   @keyframes vozPulso{0%,100%{box-shadow:0 0 0 0 rgba(236,86,72,.7);}50%{box-shadow:0 0 0 7px rgba(236,86,72,0);}}
+
+  /* ================= convite ================= */
+  #btnWhats{display:block;margin:10px auto 0;background:#25D366;border-color:#1DA851;color:#08331A;
+            font-size:14px;font-weight:800;padding:11px 16px;}
+  #btnWhats.oculta{display:none;}
+  #btnEntrarSala.chamando{background:#FFD24A;border-color:#FFE58A;color:#2B1E14;animation:chamaEntrar 1s ease-in-out infinite;}
+  @keyframes chamaEntrar{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
 </style>
 <link rel="stylesheet" href="css/ui-ex.css">
 </head>
@@ -509,6 +516,7 @@
       <span class="rotCod" id="rotCodigo">ROOM CODE</span>
       <b id="onCodigo" class="vazio">----</b>
       <small id="dicaCodigo">send this code to your friend</small>
+      <button id="btnWhats" class="oculta" type="button">📲 SEND ON WHATSAPP</button>
     </div>
     <div class="onBotoes">
       <button id="btnCriarSala">CREATE ROOM</button>
