@@ -776,17 +776,19 @@ async function talvezConvite() {
 
 async function ligarRede() {
   if (onLigado) return true;
-  if (!APPS_SCRIPT_PRONTO && !FIREBASE_PRONTO) {
-    dizer(null, 'Preencha js/apps-script-config.js ou js/firebase-config.js');
+  if (!FIREBASE_PRONTO) {
+    dizer(null, 'Preencha js/firebase-config.js');
     return false;
   }
   dizer('connecting');
   try {
-    await Rede.conectar(APPS_SCRIPT_PRONTO ? { url: APPS_SCRIPT_URL } : FIREBASE_CONFIG);
+    await Rede.conectar(FIREBASE_CONFIG);
     onLigado = true;
     return true;
   } catch (e) {
-    dizer('netFail');
+    /* A mensagem do transporte já diz o que falta (login anônimo
+       desligado, regra, apiKey). "Não conectou" sozinho não ajuda. */
+    dizer(null, t('netFail') + ((e && e.message) ? ' — ' + e.message : ''));
     return false;
   }
 }
@@ -1020,7 +1022,7 @@ function abrirOnline() {
   fecharTelas();
   telaOnline.classList.remove('oculta');
   mostrarCodigo('');
-  dizer(null, (APPS_SCRIPT_PRONTO || FIREBASE_PRONTO) ? '' : 'Preencha js/apps-script-config.js ou js/firebase-config.js');
+  dizer(null, FIREBASE_PRONTO ? '' : 'Preencha js/firebase-config.js');
   ligarRede();
 }
 
@@ -1048,7 +1050,7 @@ if (btnCriar) btnCriar.onclick = () => tentar(async () => {
 });
 
 const btnEntrar = document.getElementById('btnEntrarSala');
-/* A primeira chamada ao Apps Script pode levar vários segundos. Sem esta
+/* A primeira chamada ao servidor pode levar alguns segundos. Sem esta
    trava, o segundo toque em ENTRAR chegava depois do primeiro já ter
    entrado e voltava "sala cheia" — cheia de si mesmo. */
 let entrando = false;

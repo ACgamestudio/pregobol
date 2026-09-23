@@ -32,96 +32,198 @@
      sair(cod, sou)         -> Promise
      enviarAudio(cod, a)    -> Promise            a = {de, mime, d(base64), dur}
      ouvirAudios(cod, cb)   -> unsubscribe        cb(a)
+     presenca(cod, sou)     -> void   (opcional) mantém vivo/sou de pé,
+                                       inclusive depois de reconectar
    ------------------------------------------------------------------ */
 
 const TransporteFirebase = {
   nome: 'firebase',
-  db: null, uid: null, meuNaFila: null,
+  db: null, uid: null, meuNaFila: null, motivo: null,
+  _presenca: null,
+  PRAZO: 15000,           // nenhuma operação pode deixar a tela "conectando" pra sempre
+
+  /* Promessa com prazo. Sem rede, o SDK do Firebase enfileira a escrita
+     e espera em silêncio; pro jogador isso é uma tela parada. */
+  prazo(p, msg) {
+    let t;
+    return Promise.race([
+      p,
+      new Promise((_, falha) => { t = setTimeout(() => falha(new Error(msg || 'sem resposta do servidor')), this.PRAZO); })
+    ]).finally(() => clearTimeout(t));
+  },
+
+  /* Os erros do Firebase dizem o que falta configurar, mas em código.
+     Traduzir aqui poupa uma tarde de depuração. */
+  explicar(e) {
+    const c = String((e && (e.code || e.message)) || e || '');
+    if (/operation-not-allowed|admin-restricted/i.test(c))
+      return new Error('Ative o login Anônimo no Firebase (Authentication → Sign-in method → Anônimo)');
+    if (/api-key|invalid-api-key/i.test(c))
+      return new Error('apiKey inválida em js/firebase-config.js');
+    if (/permission.denied/i.test(c))
+      return new Error('O Firebase recusou: confira as regras do Realtime Database (veja firebase-config.js)');
+    if (/network-request-failed/i.test(c))
+      return new Error('sem internet');
+    return e instanceof Error ? e : new Error(c);
+  },
 
   async conectar(cfg) {
     if (typeof firebase === 'undefined')
-      throw new Error('Firebase SDK not loaded');
-    if (!firebase.apps.length) firebase.initializeApp(cfg);
-    await firebase.auth().signInAnonymously();
-    this.uid = firebase.auth().currentUser.uid;
-    this.db = firebase.database();
+      throw new Error('SDK do Firebase não carregou (sem internet?)');
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(cfg);
+      /* Anônimo persiste no navegador: recarregar a página mantém o
+         mesmo uid, e é isso que permite retomar a sala. */
+      if (!firebase.auth().currentUser)
+        await this.prazo(firebase.auth().signInAnonymously(), 'o login do Firebase não respondeu');
+      this.uid = firebase.auth().currentUser.uid;
+      this.db = firebase.database();
+    } catch (e) { throw this.explicar(e); }
   },
 
   r(p) { return this.db.ref(p); },
 
+  /* JSON de ida e volta: o Firebase recusa undefined e NaN, e o erro
+     aparece longe de quem o causou. */
+  limpo(x) { return x == null ? null : JSON.parse(JSON.stringify(x)); },
+
   async criarSala(cod, dados) {
-    await this.r('salas/' + cod).set(Object.assign({
-      criada: firebase.database.ServerValue.TIMESTAMP, host: this.uid
-    }, dados));
-    /* the whole reason for choosing Firebase: an abandoned room cleans
-       itself up, and the opponent finds out immediately. */
-    this.r('salas/' + cod + '/vivo/1').onDisconnect().remove();
-    await this.r('salas/' + cod + '/vivo/1').set(true);
+    try {
+      await this.prazo(this.r('salas/' + cod).set(Object.assign({
+        criada: firebase.database.ServerValue.TIMESTAMP, host: this.uid
+      }, this.limpo(dados))));
+    } catch (e) { throw this.explicar(e); }
   },
 
   async lerSala(cod) {
-    const s = await this.r('salas/' + cod).once('value');
-    return s.val();
+    try {
+      const s = await this.prazo(this.r('salas/' + cod).once('value'));
+      return s.val();
+    } catch (e) { throw this.explicar(e); }
   },
 
+  /* Transação: dois amigos tocando ENTRAR ao mesmo tempo não podem os dois
+     virar visitante. O primeiro palpite vem do cache local, que costuma
+     estar vazio — por isso "não existe" devolve null em vez de abortar:
+     se o servidor discordar, a função roda de novo com o valor real. */
   async entrarSala(cod, dados) {
-    const ref = this.r('salas/' + cod);
-    const res = await ref.transaction(s => {
-      if (!s) return;                       // room does not exist
-      if (s.visitante) return;              // already full
-      s.visitante = this.uid;
-      s.cfgB = dados;
-      return s;
+    const uid = this.uid, cfgB = this.limpo(dados) || {};
+    let motivo = null;
+    try {
+      const res = await this.prazo(this.r('salas/' + cod).transaction(s => {
+        if (s === null) { motivo = 'inexistente'; return null; }
+        if (s.visitante && s.visitante !== uid) { motivo = 'cheia'; return; }
+        motivo = null;
+        s.visitante = uid;
+        s.cfgB = cfgB;
+        if (s.saiu) delete s.saiu[2];
+        return s;
+      }, undefined, false));
+      if (!res.committed) { this.motivo = motivo || 'cheia'; return false; }
+      if (motivo || !res.snapshot.val()) { this.motivo = motivo || 'inexistente'; return false; }
+      this.motivo = null;
+      return true;
+    } catch (e) { throw this.explicar(e); }
+  },
+
+  /* Presença. O ponto fraco do celular: quem vai pro WhatsApp mandar o
+     link tem a aba congelada, a conexão cai e o onDisconnect apaga o
+     "vivo". Quando a aba volta, o Firebase reconecta sozinho — e
+     .info/connected avisa. É aí que o "vivo" é escrito DE NOVO. Sem
+     isso, o anfitrião voltava do WhatsApp e ninguém sabia. */
+  presenca(cod, sou) {
+    this.pararPresenca();
+    const vivo = this.r('salas/' + cod + '/vivo/' + sou);
+    const con = this.db.ref('.info/connected');
+    const h = con.on('value', async snap => {
+      if (snap.val() !== true) return;
+      try {
+        await vivo.onDisconnect().remove();
+        await vivo.set(true);
+        if (this.meuNaFila === cod) {
+          await this.r('fila/' + cod).onDisconnect().remove();
+          await this.r('fila/' + cod).set(firebase.database.ServerValue.TIMESTAMP);
+        }
+      } catch (e) {
+        /* sala apagada: a regra .validate recusa recriar só o "vivo" */
+      }
     });
-    if (!res.committed || !res.snapshot.val()) return false;
-    this.r('salas/' + cod + '/vivo/2').onDisconnect().remove();
-    await this.r('salas/' + cod + '/vivo/2').set(true);
-    return true;
+    this._presenca = () => {
+      con.off('value', h);
+      vivo.onDisconnect().cancel().catch(() => {});
+    };
+  },
+
+  pararPresenca() {
+    if (this._presenca) { this._presenca(); this._presenca = null; }
   },
 
   ouvirSala(cod, cb) {
     const ref = this.r('salas/' + cod);
-    const h = ref.on('value', s => cb(s.val()));
+    const h = ref.on('value', s => cb(s.val()), e => cb(null));
     return () => ref.off('value', h);
   },
 
+  /* A jogada vai como texto. O Realtime Database transforma arrays em
+     objetos e some com arrays vazios; o tabuleiro do outro lado chegaria
+     diferente do que foi enviado. Texto chega exatamente igual. */
   async enviar(cod, n, msg) {
-    await this.r('salas/' + cod + '/jogadas/' + n).set(msg);
+    try {
+      await this.prazo(this.r('salas/' + cod + '/jogadas/' + n).set({ j: JSON.stringify(msg) }),
+                       'a jogada não chegou ao servidor');
+    } catch (e) { throw this.explicar(e); }
   },
 
   ouvirJogadas(cod, cb) {
     const ref = this.r('salas/' + cod + '/jogadas');
-    const h = ref.on('child_added', s => cb(Number(s.key), s.val()));
+    const h = ref.on('child_added', s => {
+      const v = s.val();
+      let m = null;
+      try { m = v && typeof v.j === 'string' ? JSON.parse(v.j) : v; } catch (e) {}
+      if (m) cb(Number(s.key), m);
+    });
     return () => ref.off('child_added', h);
   },
 
   async enfileirar(cod) {
     this.meuNaFila = cod;
-    this.r('fila/' + cod).onDisconnect().remove();
-    await this.r('fila/' + cod).set(firebase.database.ServerValue.TIMESTAMP);
+    await this.r('fila/' + cod).onDisconnect().remove();
+    await this.prazo(this.r('fila/' + cod).set(firebase.database.ServerValue.TIMESTAMP));
   },
 
   async desenfileirar() {
     if (!this.meuNaFila) return;
-    await this.r('fila/' + this.meuNaFila).remove();
+    const cod = this.meuNaFila;
     this.meuNaFila = null;
+    try {
+      await this.r('fila/' + cod).onDisconnect().cancel();
+      await this.r('fila/' + cod).remove();
+    } catch (e) {}
   },
 
-  /* Atomic claim. Two players hitting FIND MATCH at the same instant
-     must not both walk away with the same room. */
+  /* Pegar uma sala da fila é atômico: dois jogadores tocando PROCURAR no
+     mesmo instante não podem sair com a mesma sala. A última execução da
+     transação é a que valeu no servidor, então é ela que diz se havia
+     alguém ali pra pegar. */
   async pegarDaFila() {
-    const lista = await this.r('fila').orderByValue().limitToFirst(6).once('value');
+    let lista;
+    try { lista = await this.prazo(this.r('fila').orderByValue().limitToFirst(6).once('value')); }
+    catch (e) { throw this.explicar(e); }
     const v = lista.val();
     if (!v) return null;
     for (const cod of Object.keys(v)) {
-      const res = await this.r('fila/' + cod).transaction(x => (x === null ? undefined : null));
-      if (res.committed && res.snapshot.val() === null) return cod;
+      if (cod === this.meuNaFila) continue;
+      let tinha = false;
+      const res = await this.r('fila/' + cod).transaction(x => { tinha = x !== null; return null; },
+                                                          undefined, false);
+      if (res.committed && tinha) return cod;
     }
     return null;
   },
 
   async enviarAudio(cod, a) {
-    await this.r('salas/' + cod + '/audios').push(a);
+    try { await this.prazo(this.r('salas/' + cod + '/audios').push(a), 'áudio não enviado'); }
+    catch (e) { throw this.explicar(e); }
   },
 
   ouvirAudios(cod, cb) {
@@ -130,225 +232,14 @@ const TransporteFirebase = {
     return () => ref.off('child_added', h);
   },
 
+  /* Saída explícita marca "saiu": o outro lado sabe NA HORA que não é
+     uma queda passageira e não precisa esperar a tolerância. */
   async sair(cod, sou) {
+    this.pararPresenca();
     if (!cod) return;
+    if (sou === 1) { try { await this.r('salas/' + cod).remove(); } catch (e) {} return; }
+    try { await this.r('salas/' + cod + '/saiu/' + sou).set(true); } catch (e) {}
     try { await this.r('salas/' + cod + '/vivo/' + sou).remove(); } catch (e) {}
-    if (sou === 1) { try { await this.r('salas/' + cod).remove(); } catch (e) {} }
-  }
-};
-
-
-/* ------------------------------------------------------------------
-   Google Apps Script.
-
-   Mesmo contrato do transporte do Firebase, com uma diferença que muda
-   tudo: não existe push. Um web app do Apps Script é requisição e
-   resposta, então "ouvir" aqui é perguntar de tempos em tempos.
-
-   Uma consequência prática: sem onDisconnect, a queda do adversário
-   deixa de ser um evento e passa a ser uma dedução — ninguém deu sinal
-   há QUEDA_MS. Por isso o servidor devolve o próprio relógio em cada
-   resposta: comparar carimbos do servidor com o relógio do celular do
-   jogador daria falso positivo toda vez que os dois estivessem
-   dessincronizados.
-   ------------------------------------------------------------------ */
-const TransporteAppsScript = {
-  nome: 'apps-script',
-  url: '', uid: null,
-  INTERVALO: 1800,        // ms entre consultas
-  /* Sem sinal por mais que isso = saiu. Era 16s, mas no celular quem
-     vai pro WhatsApp mandar o link tem a aba CONGELADA pelo sistema e
-     para de dar sinal: o convidado entrava e ficava "conectando" até o
-     anfitrião voltar. Saída de verdade não depende disto — sair apaga a
-     sala ou marca s.saiu, e o outro lado sabe na hora. */
-  QUEDA_MS: 90000,
-  TEMPO_MAX: 15000,       // uma requisição pendurada não pode travar o polling
-  _timer: null, _cbSala: null, _cbJogadas: null, _cbAudio: null,
-  _desde: -1, _desdeA: -1, _cod: null, _visto: null, _falhas: 0,
-
-  async conectar(cfg) {
-    this.url = (cfg && cfg.url) || APPS_SCRIPT_URL;
-    if (!this.url) throw new Error('APPS_SCRIPT_URL vazia');
-    let uid = null;
-    try { uid = sessionStorage.getItem('pregobol_uid'); } catch (e) {}
-    if (!uid) {
-      uid = 'u' + Math.random().toString(36).slice(2, 10);
-      try { sessionStorage.setItem('pregobol_uid', uid); } catch (e) {}
-    }
-    this.uid = uid;
-    /* Voltou pro jogo (do WhatsApp, de outra aba): consulta NA HORA em
-       vez de esperar o próximo ciclo, que o sistema pode ter atrasado. */
-    if (!this._ouvindoVis && typeof document !== 'undefined' && document.addEventListener) {
-      this._ouvindoVis = true;
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && this._timer && this._passo && !this._emVoo) {
-          clearTimeout(this._timer);
-          this._timer = setTimeout(this._passo, 0);
-        }
-      });
-    }
-  },
-
-  /* text/plain de propósito: com application/json o navegador manda um
-     OPTIONS de preflight, e o Apps Script não responde OPTIONS. */
-  async chamar(dados) {
-    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const t = ctl ? setTimeout(() => ctl.abort(), this.TEMPO_MAX) : null;
-    try {
-      const r = await fetch(this.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(dados),
-        redirect: 'follow',
-        signal: ctl ? ctl.signal : undefined
-      });
-      if (!r.ok) throw new Error('http ' + r.status);
-      const txt = await r.text();
-      /* Se a implantação não estiver como "Qualquer pessoa", o Google
-         devolve uma página HTML de login em vez de JSON. Dizer isso
-         poupa uma tarde de depuração. */
-      try { return JSON.parse(txt); }
-      catch (e) { throw new Error('o Apps Script respondeu HTML, não JSON — confira se a implantação está como "Qualquer pessoa"'); }
-    } finally { if (t) clearTimeout(t); }
-  },
-
-  async criarSala(cod, dados) {
-    const r = await this.chamar({ acao: 'criar', cod: cod, uid: this.uid,
-                                  cfg: JSON.stringify(dados.cfg || dados) });
-    if (!r.ok) throw new Error(r.motivo || 'falhou');
-  },
-
-  async lerSala(cod) {
-    const r = await this.chamar({ acao: 'ler', cod: cod });
-    return r.ok ? this.traduzir(r.sala, r.agora) : null;
-  },
-
-  /* Guarda o motivo da recusa: "não existe" e "cheia" pedem respostas
-     diferentes do jogador. Trava ocupada é passageira: tenta de novo. */
-  async entrarSala(cod, dados) {
-    for (let i = 0; i < 3; i++) {
-      const r = await this.chamar({ acao: 'entrar', cod: cod, uid: this.uid,
-                                    cfg: JSON.stringify(dados || {}) });
-      if (r.ok) { this.motivo = null; return true; }
-      this.motivo = r.motivo || r.erro || 'falhou';
-      if (r.erro !== 'ocupado') return false;
-      await new Promise(ok => setTimeout(ok, 800));
-    }
-    return false;
-  },
-
-  /* Formato do Firebase pra cima: vivo vira booleano, e é aqui que a
-     ausência de sinal vira "saiu". */
-  traduzir(s, agora) {
-    if (!s) return null;
-    const vivo = {};
-    this._visto = this._visto || {};
-    ['1', '2'].forEach(k => {
-      /* Presença mora no CacheService, que pode despejar uma chave.
-         Chave ausente = sem notícia nova: vale o último carimbo visto.
-         Só saída explícita (s.saiu) ou silêncio longo derrubam. */
-      let t = s.vivo && s.vivo[k];
-      if (t) this._visto[k] = Math.max(this._visto[k] || 0, t);
-      else t = this._visto[k];
-      const saiu = s.saiu && s.saiu[k];
-      if (t && !saiu && (agora - t) < this.QUEDA_MS) vivo[k] = true;
-    });
-    const visto = {};
-    ['1', '2'].forEach(k => { if (this._visto[k]) visto[k] = Math.max(0, agora - this._visto[k]); });
-    return { host: s.host, visitante: s.visitante, cfg: s.cfg, cfgB: s.cfgB,
-             vivo: vivo, visto: visto, criada: s.criada };
-  },
-
-  /* Uma consulta alimenta os dois "ouvintes": estado da sala e jogadas
-     novas chegam na mesma resposta. */
-  ouvirSala(cod, cb) {
-    this._cod = cod; this._cbSala = cb;
-    this.iniciarLoop();
-    return () => { this._cbSala = null; this.pararSePreciso(); };
-  },
-
-  ouvirJogadas(cod, cb) {
-    this._cod = cod; this._cbJogadas = cb;
-    this.iniciarLoop();
-    return () => { this._cbJogadas = null; this.pararSePreciso(); };
-  },
-
-  ouvirAudios(cod, cb) {
-    this._cod = cod; this._cbAudio = cb;
-    this.iniciarLoop();
-    return () => { this._cbAudio = null; this.pararSePreciso(); };
-  },
-
-  async enviarAudio(cod, a) {
-    const r = await this.chamar({ acao: 'audio', cod: cod, sou: a.de,
-                                  mime: a.mime, d: a.d, dur: a.dur });
-    if (!r.ok) throw new Error(r.motivo || 'áudio não enviado');
-  },
-
-  iniciarLoop() {
-    if (this._timer) return;
-    const passo = async () => {
-      if (!this._cod) return;
-      this._emVoo = true;
-      try {
-        const r = await this.chamar({ acao: 'sync', cod: this._cod,
-                                      sou: Rede.sou || 0, desde: this._desde,
-                                      desdeA: this._desdeA });
-        this._falhas = 0;
-        if (r.ok) {
-          if (this._cbSala) this._cbSala(this.traduzir(r.sala, r.agora));
-          (r.jogadas || []).forEach(j => {
-            this._desde = Math.max(this._desde, j.n);
-            if (this._cbJogadas) {
-              let m = null;
-              try { m = JSON.parse(j.msg); } catch (e) {}
-              if (m) this._cbJogadas(j.n, m);
-            }
-          });
-          (r.audios || []).forEach(a => { if (this._cbAudio) this._cbAudio(a); });
-          if (typeof r.an === 'number') this._desdeA = Math.max(this._desdeA, r.an - 1);
-        } else if (this._cbSala) {
-          this._cbSala(null);              // sala sumiu
-        }
-      } catch (e) {
-        /* Uma falha isolada é normal (rede oscila). Várias seguidas
-           significam que não vai voltar sozinho, e ficar mudo é pior que
-           errar: o jogador fica olhando "conectando" pra sempre. */
-        this._falhas = (this._falhas || 0) + 1;
-        if (this._falhas === 3 && Rede.ao.erro)
-          Rede.ao.erro(new Error('sem resposta do servidor: ' + (e.message || e)));
-      }
-      this._emVoo = false;
-      if (this._timer) this._timer = setTimeout(passo, this.INTERVALO);
-    };
-    this._passo = passo;
-    this._timer = setTimeout(passo, 0);
-  },
-
-  pararSePreciso() {
-    if (this._cbSala || this._cbJogadas || this._cbAudio) return;
-    if (this._timer) { clearTimeout(this._timer); this._timer = null; }
-  },
-
-  async enviar(cod, n, msg) {
-    await this.chamar({ acao: 'enviar', cod: cod, n: n, sou: Rede.sou,
-                        msg: JSON.stringify(msg) });
-  },
-
-  async enfileirar(cod) { await this.chamar({ acao: 'enfileirar', cod: cod }); },
-  async desenfileirar() {
-    if (this._cod) await this.chamar({ acao: 'desenfileirar', cod: this._cod });
-  },
-  async pegarDaFila() {
-    const r = await this.chamar({ acao: 'pegar' });
-    return r.ok ? r.cod : null;
-  },
-
-  async sair(cod, sou) {
-    if (this._timer) { clearTimeout(this._timer); this._timer = null; }
-    this._cbSala = this._cbJogadas = this._cbAudio = null; this._cod = null;
-    this._desde = -1; this._desdeA = -1; this._visto = null; this._falhas = 0;
-    if (cod) { try { await this.chamar({ acao: 'sair', cod: cod, sou: sou }); } catch (e) {} }
   }
 };
 
@@ -394,7 +285,11 @@ const TransporteLoop = {
     (this.mundo.ouvintesA[cod] = this.mundo.ouvintesA[cod] || []).push(cb);
     return () => {};
   },
-  async sair(cod, sou) { const s = this._s(cod); if (s) delete s.vivo[sou]; this._avisar(cod); }
+  async sair(cod, sou) {
+    const s = this._s(cod);
+    if (s) { delete s.vivo[sou]; s.saiu = Object.assign({}, s.saiu, { [sou]: true }); }
+    this._avisar(cod);
+  }
 };
 
 /* ------------------------------------------------------------------
@@ -418,15 +313,16 @@ const Rede = {
 
   usar(t) { this.T = t; return this; },
 
-  /* Apps Script ganha se estiver configurado — é o que você estará
-     testando. Sem ele, cai no Firebase. */
   async conectar(cfg) {
-    if (!this.T) {
-      const usarGAS = (typeof APPS_SCRIPT_PRONTO !== 'undefined') && APPS_SCRIPT_PRONTO;
-      this.usar(usarGAS ? TransporteAppsScript : TransporteFirebase);
-    }
+    if (!this.T) this.usar(TransporteFirebase);
     await this.T.conectar(cfg);
   },
+
+  /* Queda de conexão no meio da partida (celular trocou de rede, tela
+     apagou, foi responder o WhatsApp) não é desistência. Espera esse
+     tempo pelo outro voltar antes de encerrar. Saída de verdade não
+     espera: quem sai marca "saiu" e o outro lado sabe na hora. */
+  QUEDA_MS: 45000,
 
   codigo() {
     /* No vowels: a room code should never accidentally spell something. */
@@ -531,11 +427,14 @@ const Rede = {
     if (this._offSala) this._offSala();
     if (this._offJog) this._offJog();
     if (this._offAudio) this._offAudio();
+    if (this.T.presenca) this.T.presenca(this.sala, this.sou);
 
     this._offSala = this.T.ouvirSala(this.sala, s => {
       if (!s) { this._quedou(); return; }
       this.cfgSala = s;
-      const doisAqui = s.vivo && s.vivo[1] && s.vivo[2];
+      const doisAqui = !!(s.vivo && s.vivo[1] && s.vivo[2]);
+      const outro = this.sou === 1 ? 2 : 1;
+      if (doisAqui && this._graca) { clearTimeout(this._graca); this._graca = null; }
       if (doisAqui && this.estado !== 'jogando') {
         clearTimeout(this._vigia);
         this.estado = 'jogando';
@@ -543,7 +442,14 @@ const Rede = {
         if (this.publica) this.T.desenfileirar();
         if (this.ao.pronto) this.ao.pronto(s);
       } else if (this.estado === 'jogando' && !doisAqui) {
-        this._quedou();
+        if (s.saiu && s.saiu[outro]) this._quedou();
+        else if (!this._graca) {
+          this._graca = setTimeout(() => {
+            this._graca = null;
+            const c = this.cfgSala;
+            if (this.estado === 'jogando' && !(c && c.vivo && c.vivo[1] && c.vivo[2])) this._quedou();
+          }, this.QUEDA_MS);
+        }
       }
       if (this.ao.oponente) this.ao.oponente(s);
     });
@@ -562,8 +468,8 @@ const Rede = {
     }) : null;
   },
 
-  /* Mensagem de voz. Vai como base64 dentro do JSON: é o único jeito que
-     o Apps Script aceita sem preflight, e 6s de voz dão poucos KB. */
+  /* Mensagem de voz. Vai como base64 no próprio banco: 6s de voz em
+     opus dão poucos KB, e assim não precisa do Firebase Storage. */
   async enviarAudio(blob, dur) {
     if (!this.ativo || this.estado !== 'jogando') throw new Error('fora de partida');
     const d = await new Promise((ok, falha) => {
@@ -577,6 +483,7 @@ const Rede = {
   },
 
   _quedou() {
+    if (this._graca) { clearTimeout(this._graca); this._graca = null; }
     if (this.estado === 'caiu' || !this.ativo) return;
     this.estado = 'caiu';
     if (this.ao.saiu) this.ao.saiu();
@@ -608,6 +515,8 @@ const Rede = {
     this.ativo = false; this.estado = 'off'; this.sala = null;
     this._esquecer();
     this.emCurso = null; this.pendente = null;
+    clearTimeout(this._vigia);
+    if (this._graca) { clearTimeout(this._graca); this._graca = null; }
     if (this._offSala) this._offSala();
     if (this._offJog) this._offJog();
     if (this._offAudio) this._offAudio();

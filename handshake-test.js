@@ -8,7 +8,7 @@ const el=()=>({style:{setProperty:noop},classList:{add:noop,remove:noop,toggle:n
   querySelector:()=>el(),querySelectorAll:()=>[]});
 const doc={getElementById:el,querySelector:el,querySelectorAll:()=>[],createElement:el,body:el(),documentElement:el()};
 const ORDEM=['i18n','audio','rng','data-caps','data-fields','data-nails','fx','combos','specials','progress','net'];
-const CFG="\nconst APPS_SCRIPT_URL='';const APPS_SCRIPT_PRONTO=false;const FIREBASE_CONFIG={};const FIREBASE_PRONTO=false;\n";
+const CFG="\nconst FIREBASE_CONFIG={};const FIREBASE_PRONTO=false;\n";
 const src=CFG+ORDEM.map(f=>fs.readFileSync(path.join(__dirname,'js')+'/'+f+'.js','utf8')).join('\n');
 function cliente(){
   return new Function('document','localStorage','setTimeout','clearTimeout','performance','window','Audio',
