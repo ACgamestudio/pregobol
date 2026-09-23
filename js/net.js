@@ -156,7 +156,12 @@ const TransporteAppsScript = {
   nome: 'apps-script',
   url: '', uid: null,
   INTERVALO: 1800,        // ms entre consultas
-  QUEDA_MS: 16000,        // sem sinal por mais que isso = saiu
+  /* Sem sinal por mais que isso = saiu. Era 16s, mas no celular quem
+     vai pro WhatsApp mandar o link tem a aba CONGELADA pelo sistema e
+     para de dar sinal: o convidado entrava e ficava "conectando" até o
+     anfitrião voltar. Saída de verdade não depende disto — sair apaga a
+     sala ou marca s.saiu, e o outro lado sabe na hora. */
+  QUEDA_MS: 90000,
   TEMPO_MAX: 15000,       // uma requisição pendurada não pode travar o polling
   _timer: null, _cbSala: null, _cbJogadas: null, _cbAudio: null,
   _desde: -1, _desdeA: -1, _cod: null, _visto: null, _falhas: 0,
@@ -171,6 +176,17 @@ const TransporteAppsScript = {
       try { sessionStorage.setItem('pregobol_uid', uid); } catch (e) {}
     }
     this.uid = uid;
+    /* Voltou pro jogo (do WhatsApp, de outra aba): consulta NA HORA em
+       vez de esperar o próximo ciclo, que o sistema pode ter atrasado. */
+    if (!this._ouvindoVis && typeof document !== 'undefined' && document.addEventListener) {
+      this._ouvindoVis = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && this._timer && this._passo) {
+          clearTimeout(this._timer);
+          this._timer = setTimeout(this._passo, 0);
+        }
+      });
+    }
   },
 
   /* text/plain de propósito: com application/json o navegador manda um
@@ -301,6 +317,7 @@ const TransporteAppsScript = {
       }
       if (this._timer) this._timer = setTimeout(passo, this.INTERVALO);
     };
+    this._passo = passo;
     this._timer = setTimeout(passo, 0);
   },
 
@@ -418,7 +435,7 @@ const Rede = {
   /* Nada pode ficar "conectando" pra sempre. Se o outro lado não
      aparecer nesse prazo, o jogador é avisado em vez de encarar uma
      tela parada. */
-  ESPERA_MAX: 45000,
+  ESPERA_MAX: 120000,
   _vigiar() {
     clearTimeout(this._vigia);
     /* Quem criou a sala está mandando o link no WhatsApp: esperar é o
@@ -477,7 +494,9 @@ const Rede = {
 
   async retomar(cod) {
     const s = await this.T.lerSala(cod);
-    if (!s || s.visitante) { this._esquecer(); return false; }
+    /* Se o amigo entrou enquanto minha aba estava descartada, retomar é
+       exatamente o que falta pra partida começar — não recusar. */
+    if (!s) { this._esquecer(); return false; }
     this.sala = cod; this.sou = 1; this.ativo = true; this.publica = false;
     this.turno = 0; this.aplicado = -1; this.estado = 'esperando';
     this._ouvir();

@@ -1055,6 +1055,7 @@ if (btnEntrar) btnEntrar.onclick = () => { if (entrando) return; entrando = true
     return;
   }
   mostrarCodigo(cod);
+  if (Rede.estado !== 'jogando') dizer('joinedWaiting');
 }).finally(() => { entrando = false; }); };
 
 const btnProcurar = document.getElementById('btnProcurar');
