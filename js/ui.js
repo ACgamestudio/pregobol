@@ -292,7 +292,9 @@ async function iniciar() {
   /* A abertura fica LIGADA por padrão: ela é parte da cara do jogo, não
      um custo de carregamento. Quem quiser ir direto ao menu desliga no
      card ABERTURA — decisão do jogador, não minha. */
-  if (Progresso.dados.abertura === false) {
+  /* Convidado pelo WhatsApp não precisa ver a abertura: o amigo está
+     esperando do outro lado. */
+  if (Progresso.dados.abertura === false || salaConvite) {
     abertura.classList.add('oculta');
     tocarMusica();
     abrirMenu();
@@ -338,6 +340,7 @@ function abrirMenu() {
   menu.classList.remove('oculta');
   document.getElementById('somEstado').textContent = Som.ligado ? t('on') : t('off');
   document.getElementById('nivelEstado').textContent = t(nivel);
+  try { talvezConvite(); } catch (e) {}   // pode ser chamado antes do convite estar pronto
 }
 function fecharTelas() {
   for (const el of [menu, telaTimes, telaCampo, telaTampas, telaDesafios, telaFim]) {
@@ -713,6 +716,62 @@ function mostrarCodigo(cod) {
   if (!onCodigo) return;
   onCodigo.textContent = cod || '';
   onCodigo.classList.toggle('vazio', !cod);
+  const w = document.getElementById('btnWhats');
+  /* só quem CRIOU a sala manda convite */
+  if (w) w.classList.toggle('oculta', !(cod && Rede.sou === 1 && !Rede.publica));
+}
+
+/* ------------------------------------------------------------------
+   Convite pelo WhatsApp: o link abre o jogo com ?sala=ABCD e o convidado
+   cai direto na tela online com o código preenchido — só apertar ENTRAR.
+   ------------------------------------------------------------------ */
+function linkConvite(cod) {
+  return location.origin + location.pathname + '?sala=' + encodeURIComponent(cod);
+}
+
+const btnWhats = document.getElementById('btnWhats');
+if (btnWhats) btnWhats.onclick = () => {
+  const cod = Rede.sala;
+  if (!cod) return;
+  Som.botao();
+  const texto = t('inviteMsg', cod) + '\n' + linkConvite(cod);
+  window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+  dizer('comeBack');
+};
+
+/* lido uma vez na carga; a URL é limpa pra que recarregar a página não
+   tente entrar de novo numa sala que já acabou */
+const salaConvite = (() => {
+  try {
+    const c = new URLSearchParams(location.search).get('sala');
+    if (c) history.replaceState(null, '', location.pathname);
+    return c ? c.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4) : null;
+  } catch (e) { return null; }
+})();
+let conviteUsado = false;
+
+/* Chamado pelo abrirMenu. Na primeira vez que o menu aparece: se veio
+   de um convite, vai pra tela online com o código pronto; se eu tinha
+   criado uma sala e o navegador recarregou a aba, retoma a sala. */
+async function talvezConvite() {
+  if (conviteUsado) return;
+  conviteUsado = true;
+  if (salaConvite && salaConvite.length === 4) {
+    abrirOnline();
+    if (onEntrada) onEntrada.value = salaConvite;
+    const b = document.getElementById('btnEntrarSala');
+    if (b) b.classList.add('chamando');
+    dizer('invited');
+    return;
+  }
+  const minha = Rede.salaLembrada();
+  if (!minha) return;
+  abrirOnline();
+  if (!(await ligarRede())) return;
+  try {
+    if (await Rede.retomar(minha)) { mostrarCodigo(minha); dizer('resumed'); }
+    else dizer(null, '');
+  } catch (e) { dizer(null, ''); }
 }
 
 async function ligarRede() {
@@ -743,7 +802,195 @@ function comecarOnline() {
   novaPartida(cfgLocal);
   atualizarHUD();
   mostrarAviso(t('yourTurn'), Rede.sou === 1 ? t('goalCries')[0] : t('opponentTurn'));
+  Voz.mostrar(true);
 }
+
+/* ===================================================================
+   Mensagem de voz (walkie-talkie): SEGURE o 🎙️ pra gravar, solte pra
+   enviar. Até 6s. Só existe em partida online.
+
+   Por que segurar e não tocar-pra-começar/tocar-pra-parar: no meio do
+   jogo é fácil esquecer o microfone aberto; segurando, soltar o dedo
+   sempre encerra.
+
+   Primeira vez: o navegador pergunta pela permissão do microfone. Essa
+   pergunta rouba o "soltar" do dedo, então a primeira pressão só pede
+   permissão e não grava nada — da segunda em diante funciona direto.
+   =================================================================== */
+const Voz = {
+  MAX_MS: 6000,
+  MIN_MS: 400,          // toque acidental não vira mensagem
+  BITRATE: 16000,       // voz em opus a 16 kbps é clara e 6s ≈ 12 KB
+  btn: document.getElementById('btnVoz'),
+  rec: null, stream: null, pedacos: [], inicio: 0, segurando: false,
+  _limite: null, _anima: null, _ultimoEnvio: 0, _fila: [], _tocando: false,
+
+  suportado() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia &&
+              typeof MediaRecorder !== 'undefined');
+  },
+
+  mime() {
+    const ops = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm'];
+    if (!MediaRecorder.isTypeSupported) return '';
+    for (const m of ops) if (MediaRecorder.isTypeSupported(m)) return m;
+    return '';
+  },
+
+  mostrar(sim) {
+    if (!this.btn) return;
+    this.btn.classList.toggle('oculta', !sim);
+    if (!sim) this.cancelar();
+  },
+
+  /* aviso curto na barra de dicas, sem cobrir o campo */
+  dica(txt) {
+    const d = document.getElementById('dicaBarra');
+    if (!d) return;
+    if (this._dicaOriginal == null) this._dicaOriginal = d.textContent;
+    d.textContent = txt;
+    clearTimeout(this._dicaT);
+    this._dicaT = setTimeout(() => { d.textContent = this._dicaOriginal; this._dicaOriginal = null; }, 2600);
+  },
+
+  async apertar() {
+    if (!Rede.ativo || Rede.estado !== 'jogando') return;
+    if (!this.suportado()) { this.dica(t('micUnsupported')); return; }
+    if (this.rec) return;
+    if (Date.now() - this._ultimoEnvio < 1500) return;   // sem metralhadora de áudio
+    this.segurando = true;
+    try {
+      if (!this.stream) {
+        this.stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }
+        });
+      }
+    } catch (e) {
+      this.segurando = false;
+      this.dica(t('micDenied'));
+      return;
+    }
+    /* soltou enquanto o navegador pedia permissão: não grava */
+    if (!this.segurando) { this.soltarMic(); this.dica(t('holdToTalk')); return; }
+
+    const mime = this.mime();
+    try {
+      this.rec = new MediaRecorder(this.stream, mime ? { mimeType: mime, audioBitsPerSecond: this.BITRATE }
+                                                     : { audioBitsPerSecond: this.BITRATE });
+    } catch (e) {
+      try { this.rec = new MediaRecorder(this.stream); } catch (e2) { this.dica(t('micUnsupported')); this.soltarMic(); return; }
+    }
+    this.pedacos = [];
+    this.rec.ondataavailable = ev => { if (ev.data && ev.data.size) this.pedacos.push(ev.data); };
+    this.rec.onstop = () => this.finalizar();
+    this.rec.start();
+    this.inicio = performance.now();
+    this.btn.classList.add('gravando');
+    this.barra(true);
+    if (trilha) { this._volAntes = trilha.volume; trilha.volume = Math.min(trilha.volume, .05); }
+    this._limite = setTimeout(() => this.soltar(), this.MAX_MS);
+  },
+
+  soltar() {
+    this.segurando = false;
+    clearTimeout(this._limite);
+    if (this.rec && this.rec.state !== 'inactive') this.rec.stop();
+  },
+
+  cancelar() {
+    this.segurando = false;
+    clearTimeout(this._limite);
+    if (this.rec) { this.rec.onstop = null; try { if (this.rec.state !== 'inactive') this.rec.stop(); } catch (e) {} }
+    this.rec = null; this.pedacos = [];
+    this.soltarMic();
+    this.restaurar();
+  },
+
+  /* desliga o microfone de verdade entre mensagens (some o indicador
+     vermelho do sistema) */
+  soltarMic() {
+    if (this.stream) this.stream.getTracks().forEach(tr => tr.stop());
+    this.stream = null;
+  },
+
+  restaurar() {
+    if (this.btn) this.btn.classList.remove('gravando');
+    this.barra(false);
+    if (trilha && this._volAntes != null) { trilha.volume = this._volAntes; this._volAntes = null; }
+  },
+
+  barra(ligar) {
+    let b = this.btn && this.btn.querySelector('.vozBarra');
+    if (!b && this.btn && ligar) { b = document.createElement('span'); b.className = 'vozBarra'; this.btn.appendChild(b); }
+    cancelAnimationFrame(this._anima);
+    if (!b) return;
+    if (!ligar) { b.style.width = '0'; return; }
+    const passo = () => {
+      const f = Math.min(1, (performance.now() - this.inicio) / this.MAX_MS);
+      b.style.width = (f * 100) + '%';
+      if (f < 1 && this.rec) this._anima = requestAnimationFrame(passo);
+    };
+    passo();
+  },
+
+  async finalizar() {
+    const dur = performance.now() - this.inicio;
+    const tipo = (this.rec && this.rec.mimeType) || this.mime() || 'audio/webm';
+    const blob = new Blob(this.pedacos, { type: tipo });
+    this.rec = null; this.pedacos = [];
+    this.soltarMic();
+    this.restaurar();
+    if (dur < this.MIN_MS || !blob.size) { this.dica(t('holdToTalk')); return; }
+
+    this.btn.classList.add('enviando');
+    try {
+      await Rede.enviarAudio(blob, dur);
+      this._ultimoEnvio = Date.now();
+      this.dica(t('voiceSent'));
+    } catch (e) {
+      this.dica(t('voiceFail') + (e && e.message ? ' (' + e.message + ')' : ''));
+    } finally {
+      this.btn.classList.remove('enviando');
+    }
+  },
+
+  /* Chegou áudio do adversário. Toca em fila: duas mensagens seguidas
+     não falam uma por cima da outra. */
+  receber(a) {
+    this._fila.push(a);
+    if (!this._tocando) this.tocarProxima();
+  },
+
+  tocarProxima() {
+    const a = this._fila.shift();
+    if (!a) { this._tocando = false; if (this.btn) this.btn.classList.remove('tocando'); this.restaurar(); return; }
+    this._tocando = true;
+    const au = new Audio('data:' + (a.mime || 'audio/webm') + ';base64,' + a.d);
+    au.volume = 1;
+    if (trilha && this._volAntes == null) { this._volAntes = trilha.volume; trilha.volume = Math.min(trilha.volume, .05); }
+    if (this.btn) this.btn.classList.add('tocando');
+    this.dica(t('voiceFrom'));
+    const seguir = () => this.tocarProxima();
+    au.onended = seguir;
+    au.onerror = seguir;
+    au.play().catch(seguir);
+  }
+};
+
+if (Voz.btn) {
+  const b = Voz.btn;
+  b.addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    try { b.setPointerCapture(ev.pointerId); } catch (e) {}
+    Voz.apertar();
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(n =>
+    b.addEventListener(n, () => Voz.soltar()));
+  b.addEventListener('contextmenu', ev => ev.preventDefault());   // segurar no Android abre menu
+}
+
+Rede.ao.audio = a => Voz.receber(a);
+Rede.ao.fim = () => Voz.mostrar(false);
 
 Rede.ao.pronto = () => comecarOnline();
 Rede.ao.jogada = m => jogadaRemota(m);
@@ -789,16 +1036,26 @@ if (btnCriar) btnCriar.onclick = () => tentar(async () => {
 });
 
 const btnEntrar = document.getElementById('btnEntrarSala');
-if (btnEntrar) btnEntrar.onclick = () => tentar(async () => {
+/* A primeira chamada ao Apps Script pode levar vários segundos. Sem esta
+   trava, o segundo toque em ENTRAR chegava depois do primeiro já ter
+   entrado e voltava "sala cheia" — cheia de si mesmo. */
+let entrando = false;
+if (btnEntrar) btnEntrar.onclick = () => { if (entrando) return; entrando = true;
+  tentar(async () => {
   if (!(await ligarRede())) return;
   Som.botao();
   const cod = (onEntrada.value || '').toUpperCase().trim();
   if (cod.length < 4) { dizer('enterCode'); return; }
   dizer('connecting');
   const ok = await Rede.entrar(cod, { tampa: tampas[1] });
-  if (!ok) { dizer('roomGone'); return; }
+  const bE = document.getElementById('btnEntrarSala');
+  if (bE) bE.classList.remove('chamando');
+  if (!ok) {
+    dizer(Rede.motivo === 'cheia' ? 'roomFull' : Rede.motivo === 'inexistente' ? 'roomMissing' : 'roomGone');
+    return;
+  }
   mostrarCodigo(cod);
-});
+}).finally(() => { entrando = false; }); };
 
 const btnProcurar = document.getElementById('btnProcurar');
 if (btnProcurar) btnProcurar.onclick = () => tentar(async () => {

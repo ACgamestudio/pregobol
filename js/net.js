@@ -165,10 +165,10 @@ const TransporteAppsScript = {
     this.url = (cfg && cfg.url) || APPS_SCRIPT_URL;
     if (!this.url) throw new Error('APPS_SCRIPT_URL vazia');
     let uid = null;
-    try { uid = localStorage.getItem('pregobol_uid'); } catch (e) {}
+    try { uid = sessionStorage.getItem('pregobol_uid'); } catch (e) {}
     if (!uid) {
       uid = 'u' + Math.random().toString(36).slice(2, 10);
-      try { localStorage.setItem('pregobol_uid', uid); } catch (e) {}
+      try { sessionStorage.setItem('pregobol_uid', uid); } catch (e) {}
     }
     this.uid = uid;
   },
@@ -464,12 +464,12 @@ const Rede = {
      descartar a aba. Na volta a página recarrega do zero e a sala criada
      ficava órfã. Guardando o código, o anfitrião retoma a mesma sala. */
   _lembrar() {
-    try { localStorage.setItem('pregobol_sala', JSON.stringify({ cod: this.sala, t: Date.now() })); } catch (e) {}
+    try { sessionStorage.setItem('pregobol_sala', JSON.stringify({ cod: this.sala, t: Date.now() })); } catch (e) {}
   },
-  _esquecer() { try { localStorage.removeItem('pregobol_sala'); } catch (e) {} },
+  _esquecer() { try { sessionStorage.removeItem('pregobol_sala'); } catch (e) {} },
   salaLembrada() {
     try {
-      const x = JSON.parse(localStorage.getItem('pregobol_sala') || 'null');
+      const x = JSON.parse(sessionStorage.getItem('pregobol_sala') || 'null');
       if (x && x.cod && Date.now() - x.t < 20 * 60 * 1000) return x.cod;
     } catch (e) {}
     return null;
