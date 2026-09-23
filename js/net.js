@@ -181,7 +181,7 @@ const TransporteAppsScript = {
     if (!this._ouvindoVis && typeof document !== 'undefined' && document.addEventListener) {
       this._ouvindoVis = true;
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && this._timer && this._passo) {
+        if (document.visibilityState === 'visible' && this._timer && this._passo && !this._emVoo) {
           clearTimeout(this._timer);
           this._timer = setTimeout(this._passo, 0);
         }
@@ -253,8 +253,10 @@ const TransporteAppsScript = {
       const saiu = s.saiu && s.saiu[k];
       if (t && !saiu && (agora - t) < this.QUEDA_MS) vivo[k] = true;
     });
+    const visto = {};
+    ['1', '2'].forEach(k => { if (this._visto[k]) visto[k] = Math.max(0, agora - this._visto[k]); });
     return { host: s.host, visitante: s.visitante, cfg: s.cfg, cfgB: s.cfgB,
-             vivo: vivo, criada: s.criada };
+             vivo: vivo, visto: visto, criada: s.criada };
   },
 
   /* Uma consulta alimenta os dois "ouvintes": estado da sala e jogadas
@@ -287,6 +289,7 @@ const TransporteAppsScript = {
     if (this._timer) return;
     const passo = async () => {
       if (!this._cod) return;
+      this._emVoo = true;
       try {
         const r = await this.chamar({ acao: 'sync', cod: this._cod,
                                       sou: Rede.sou || 0, desde: this._desde,
@@ -315,6 +318,7 @@ const TransporteAppsScript = {
         if (this._falhas === 3 && Rede.ao.erro)
           Rede.ao.erro(new Error('sem resposta do servidor: ' + (e.message || e)));
       }
+      this._emVoo = false;
       if (this._timer) this._timer = setTimeout(passo, this.INTERVALO);
     };
     this._passo = passo;
@@ -467,6 +471,7 @@ const Rede = {
     if (!ok) return false;
     this.sala = cod; this.sou = 2; this.ativo = true;
     this.turno = 0; this.aplicado = -1;
+    this._lembrar();
     /* NÃO marcar 'jogando' aqui. Quem promove o estado é o ouvinte da
        sala, e é ele que dispara ao.pronto — que é o que faz a partida
        começar na tela. Marcando aqui, a condição do ouvinte nunca era
@@ -481,23 +486,29 @@ const Rede = {
      descartar a aba. Na volta a página recarrega do zero e a sala criada
      ficava órfã. Guardando o código, o anfitrião retoma a mesma sala. */
   _lembrar() {
-    try { sessionStorage.setItem('pregobol_sala', JSON.stringify({ cod: this.sala, t: Date.now() })); } catch (e) {}
+    try { sessionStorage.setItem('pregobol_sala', JSON.stringify({ cod: this.sala, sou: this.sou, t: Date.now() })); } catch (e) {}
   },
   _esquecer() { try { sessionStorage.removeItem('pregobol_sala'); } catch (e) {} },
   salaLembrada() {
     try {
       const x = JSON.parse(sessionStorage.getItem('pregobol_sala') || 'null');
-      if (x && x.cod && Date.now() - x.t < 20 * 60 * 1000) return x.cod;
+      if (x && x.cod && Date.now() - x.t < 20 * 60 * 1000) return { cod: x.cod, sou: x.sou === 2 ? 2 : 1 };
     } catch (e) {}
     return null;
   },
 
-  async retomar(cod) {
+  /* A página recarregou (o celular descartou a aba enquanto a pessoa
+     estava no WhatsApp). Volta pra mesma sala no mesmo papel.
+     ANTES recusava a sala se ela já tivesse visitante — mas o amigo
+     entrar enquanto o anfitrião está no WhatsApp é exatamente o caso
+     normal. O anfitrião perdia a sala e o convidado ficava "conectando"
+     pra sempre. */
+  async retomar(x) {
+    const cod = x && x.cod ? x.cod : x, sou = x && x.sou === 2 ? 2 : 1;
     const s = await this.T.lerSala(cod);
-    /* Se o amigo entrou enquanto minha aba estava descartada, retomar é
-       exatamente o que falta pra partida começar — não recusar. */
     if (!s) { this._esquecer(); return false; }
-    this.sala = cod; this.sou = 1; this.ativo = true; this.publica = false;
+    if (sou === 2 && s.visitante && this.T.uid && s.visitante !== this.T.uid) { this._esquecer(); return false; }
+    this.sala = cod; this.sou = sou; this.ativo = true; this.publica = false;
     this.turno = 0; this.aplicado = -1; this.estado = 'esperando';
     this._ouvir();
     return true;

@@ -294,7 +294,7 @@ async function iniciar() {
      card ABERTURA — decisão do jogador, não minha. */
   /* Convidado pelo WhatsApp não precisa ver a abertura: o amigo está
      esperando do outro lado. */
-  if (Progresso.dados.abertura === false || salaConvite) {
+  if (Progresso.dados.abertura === false || salaConvite || Rede.salaLembrada()) {
     abertura.classList.add('oculta');
     tocarMusica();
     abrirMenu();
@@ -769,7 +769,7 @@ async function talvezConvite() {
   abrirOnline();
   if (!(await ligarRede())) return;
   try {
-    if (await Rede.retomar(minha)) { mostrarCodigo(minha); dizer('resumed'); }
+    if (await Rede.retomar(minha)) { mostrarCodigo(minha.cod); dizer(minha.sou === 2 ? 'connecting' : 'resumed'); }
     else dizer(null, '');
   } catch (e) { dizer(null, ''); }
 }
@@ -992,6 +992,18 @@ if (Voz.btn) {
 Rede.ao.audio = a => Voz.receber(a);
 Rede.ao.fim = () => Voz.mostrar(false);
 
+/* Enquanto espera, a tela diz O QUÊ está esperando, em vez de um
+   "conectando…" eterno que não explica nada. */
+Rede.ao.oponente = s => {
+  if (!s || Rede.estado !== 'esperando') return;
+  if (Rede.sou === 2 && !(s.vivo && s.vivo[1])) {
+    const seg = s.visto && s.visto[1] != null ? Math.round(s.visto[1] / 1000) : 0;
+    dizer(null, t('joinedWaitHost', seg));
+  } else if (Rede.sou === 1 && s.visitante) {
+    dizer('friendJoined');
+  }
+};
+
 Rede.ao.pronto = () => comecarOnline();
 Rede.ao.jogada = m => jogadaRemota(m);
 Rede.ao.erro = e => {
@@ -1055,7 +1067,7 @@ if (btnEntrar) btnEntrar.onclick = () => { if (entrando) return; entrando = true
     return;
   }
   mostrarCodigo(cod);
-  if (Rede.estado !== 'jogando') dizer('joinedWaiting');
+  if (Rede.estado !== 'jogando') dizer(null, t('joinedWaitHost', ''));
 }).finally(() => { entrando = false; }); };
 
 const btnProcurar = document.getElementById('btnProcurar');
