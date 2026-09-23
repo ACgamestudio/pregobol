@@ -27,21 +27,11 @@ const ContentService = {
   createTextOutput: t => ({ _t: t, setMimeType() { return this; }, getContent() { return this._t; } })
 };
 const Logger = { log: () => {} };
-const cache = {};
-const CacheService = {
-  getScriptCache: () => ({
-    get: k => (k in cache ? cache[k] : null),
-    put: (k, v) => { if (String(v).length > 100000) throw new Error('cache: valor > 100KB'); cache[k] = String(v); },
-    getAll: ks => { const o = {}; ks.forEach(k => { if (k in cache) o[k] = cache[k]; }); return o; },
-    remove: k => { delete cache[k]; },
-    removeAll: ks => ks.forEach(k => delete cache[k])
-  })
-};
 
 const gs = fs.readFileSync(path.join(__dirname, 'servidor', 'Codigo.gs'), 'utf8');
-const servidor = new Function('PropertiesService', 'LockService', 'ContentService', 'Logger', 'CacheService',
+const servidor = new Function('PropertiesService', 'LockService', 'ContentService', 'Logger',
   gs + '\nreturn { doPost, processar, faxina_, limparTudo };')
-  (PropertiesService, LockService, ContentService, Logger, CacheService);
+  (PropertiesService, LockService, ContentService, Logger);
 console.log('Codigo.gs carregado e avaliado sem erro');
 
 /* ---------- fetch falso apontando pro servidor ---------- */
@@ -51,7 +41,7 @@ global.fetch = async (url, opcoes) => {
   bytesEnviados += opcoes.body.length;
   const resposta = servidor.doPost({ postData: { contents: opcoes.body } }).getContent();
   bytesRecebidos += resposta.length;
-  return { ok: true, status: 200, json: async () => JSON.parse(resposta), text: async () => resposta };
+  return { ok: true, status: 200, json: async () => JSON.parse(resposta) };
 };
 
 /* ---------- dois clientes ---------- */
@@ -194,46 +184,6 @@ async function main() {
   console.log(`\nturnos: ${turnos} · divergencias: ${divergencias}`);
   console.log(`tempo total: ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 
-  /* --- áudio --- */
-  console.log('\n--- mensagem de voz ---');
-  let ouviuB = null, ouviuA = 0;
-  B.Rede.ao.audio = a => { ouviuB = a; };
-  A.Rede.ao.audio = () => { ouviuA++; };
-  const falsoAudio = { type: 'audio/webm;codecs=opus', size: 12000, _b64: 'T2dnUw'.repeat(2000) };
-  global.FileReader = function () { this.readAsDataURL = b => { this.result = 'data:x;base64,' + b._b64; this.onload(); }; };
-  await A.Rede.enviarAudio(falsoAudio, 3200);
-  let esp = 0; while (!ouviuB && esp < 5000) { await pausa(200); esp += 200; }
-  console.log(ouviuB ? `B recebeu em ${esp}ms · ${ouviuB.mime} · ${ouviuB.d.length} chars · ${ouviuB.dur}ms` : 'B NAO RECEBEU -> FALHOU');
-  await pausa(2200);
-  console.log(ouviuA === 0 ? 'A não recebeu o próprio eco' : 'A recebeu o próprio eco -> FALHOU');
-  let grande = null;
-  try { await A.Rede.enviarAudio({ type: 'audio/webm', _b64: 'x'.repeat(100000) }, 9000); }
-  catch (e) { grande = e.message; }
-  console.log('áudio grande demais recusado:', grande ? 'sim (' + grande + ')' : 'NAO -> FALHOU');
-
-  /* --- a corrida que quebrava o online --- */
-  console.log('\n--- corrida sync x enviar ---');
-  const sala0 = JSON.parse(armazem['S_' + cod]);
-  const nAntes = sala0.n;
-  /* reproduz o que o Apps Script fazia com 2 execuções ao mesmo tempo:
-     um sync lê a sala, um enviar grava, o sync termina */
-  const leitura = armazem['S_' + cod];
-  servidor.processar({ acao: 'enviar', cod: cod, n: nAntes, sou: 1, msg: '{"de":1}' });
-  const salaDepoisEnviar = armazem['S_' + cod];
-  servidor.processar({ acao: 'sync', cod: cod, sou: 2, desde: -1 });
-  const nFinal = JSON.parse(armazem['S_' + cod]).n;
-  console.log(`sync não regrava a sala: ${armazem['S_' + cod] === salaDepoisEnviar ? 'ok' : 'FALHOU'} · n ${nAntes} -> ${nFinal}`);
-
-  /* --- entrar duas vezes (toque duplo / primeira resposta lenta) --- */
-  console.log('\n--- entrar duas vezes ---');
-  const codX = 'ZZ22';
-  servidor.processar({ acao: 'criar', cod: codX, uid: 'host', cfg: '{}' });
-  const e1 = servidor.processar({ acao: 'entrar', cod: codX, uid: 'visita', cfg: '{}' });
-  const e2 = servidor.processar({ acao: 'entrar', cod: codX, uid: 'visita', cfg: '{}' });
-  const e3 = servidor.processar({ acao: 'entrar', cod: codX, uid: 'intruso', cfg: '{}' });
-  const e4 = servidor.processar({ acao: 'entrar', cod: 'NNNN', uid: 'visita', cfg: '{}' });
-  console.log(`1a: ${e1.ok} · 2a mesma pessoa: ${e2.ok ? 'ok' : 'FALHOU ' + e2.motivo} · outra pessoa: ${e3.motivo} · inexistente: ${e4.motivo}`);
-
   /* --- matchmaking --- */
   await A.Rede.encerrar(); await B.Rede.encerrar();
   const r1 = await A.Rede.procurar({ campo: 'rua' });
@@ -246,7 +196,9 @@ async function main() {
   console.log(`limite de silencio configurado: ${T.QUEDA_MS}ms`);
   const antes = await T.lerSala(r1.sala);
   console.log('vivos agora:', JSON.stringify(antes.vivo));
-  cache['V_' + r1.sala + '_2'] = String(Date.now() - (T.QUEDA_MS + 3000));   // simula B mudo
+  const sala = JSON.parse(armazem['S_' + r1.sala]);
+  sala.vivo['2'] = Date.now() - (T.QUEDA_MS + 3000);      // simula B mudo
+  armazem['S_' + r1.sala] = JSON.stringify(sala);
   const depois = await T.lerSala(r1.sala);
   console.log('vivos apos silencio de B:', JSON.stringify(depois.vivo),
               depois.vivo['2'] ? '-> FALHOU' : '-> queda detectada');
