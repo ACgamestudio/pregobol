@@ -336,15 +336,21 @@ let campoAntesDeJogar = false;
 function abrirMenu() {
   document.body.classList.remove('jogando');
   encerrarFesta(); esconderFim();
-  for (const el of [telaTimes, telaCampo, telaTampas, telaDesafios]) el.classList.add('oculta');
+  for (const el of [telaTimes, telaCampo, telaTampas, telaDesafios, document.getElementById('telaOnline')])
+    if (el) el.classList.add('oculta');
   menu.classList.remove('oculta');
   document.getElementById('somEstado').textContent = Som.ligado ? t('on') : t('off');
   document.getElementById('nivelEstado').textContent = t(nivel);
   try { talvezConvite(); } catch (e) {}   // pode ser chamado antes do convite estar pronto
 }
 function fecharTelas() {
-  for (const el of [menu, telaTimes, telaCampo, telaTampas, telaDesafios, telaFim]) {
-    el.classList.add('oculta');
+  /* A tela ONLINE tem que estar nesta lista. Não estava: quando os dois
+     jogadores se encontravam, a partida começava POR BAIXO dela, e na
+     frente continuava "esperando adversário" / "conectando…". Era esse
+     o "online não funciona" — a rede já estava funcionando. */
+  const online = document.getElementById('telaOnline');
+  for (const el of [menu, telaTimes, telaCampo, telaTampas, telaDesafios, telaFim, online]) {
+    if (el) el.classList.add('oculta');
   }
   document.body.classList.add('jogando');
   ajustarEscala();
