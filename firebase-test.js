@@ -46,7 +46,7 @@ function criarFirebase(){
   };return r;};
   const fb={apps:[],initializeApp(){fb.apps.push(1);},
     auth:()=>({currentUser:fb._u,signInAnonymously:async()=>{fb._u={uid:cli.uid};}}),
-    database:()=>({ref:p=>ref(p)})};
+    database:()=>({ref:p=>ref(p),goOffline(){cli.cair();},goOnline(){cli.voltar();}})};
   fb.database.ServerValue={TIMESTAMP:{'.sv':'timestamp'}};
   return {fb,cli};
 }
@@ -142,6 +142,12 @@ let falhas=0;const check=(nome,ok)=>{console.log((ok?'OK   ':'FALHA')+' '+nome);
   const cod4=await J.Rede.criar({campo:'rua'},false);await espera();
   const okK=await K.Rede.entrar(cod4,{});await espera(80);
   check('duas abas do mesmo navegador também começam',okK&&pJ===1&&pK===1);
+
+  // convite velho: sala antiga sem dono não aceita entrada
+  const L=cliente();await L.Rede.conectar({});
+  server.write('salas/OLD1',{host:'x',criada:Date.now()-60*60*1000,cfg:{campo:'rua'}});
+  const okL=await L.Rede.entrar('OLD1',{});
+  check('convite velho recusado',okL===false&&L.Rede.motivo==='inexistente');
 
   console.log(falhas?`\n${falhas} FALHA(S)`:'\nTUDO OK');process.exit(falhas?1:0);
 })().catch(e=>{console.error('ERRO',e);process.exit(1);});

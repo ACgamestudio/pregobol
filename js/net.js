@@ -40,7 +40,9 @@ const TransporteFirebase = {
   nome: 'firebase',
   db: null, uid: null, meuNaFila: null, motivo: null,
   _presenca: null,
-  PRAZO: 15000,           // nenhuma operação pode deixar a tela "conectando" pra sempre
+  PRAZO: 15000,
+  RELIGAR_MS: 4000,       // fora da aba por mais que isso = reconecta na volta
+  SALA_VELHA_MS: 30 * 60 * 1000,           // nenhuma operação pode deixar a tela "conectando" pra sempre
 
   /* Promessa com prazo. Sem rede, o SDK do Firebase enfileira a escrita
      e espera em silêncio; pro jogador isso é uma tela parada. */
@@ -79,6 +81,26 @@ const TransporteFirebase = {
       this.uid = firebase.auth().currentUser.uid;
       this.db = firebase.database();
     } catch (e) { throw this.explicar(e); }
+    this._vigiarAba();
+  },
+
+  /* Voltou pra aba depois de um tempo fora (WhatsApp, outra aba, tela
+     apagada)? O navegador pode ter matado a conexão sem avisar, e o
+     Firebase só percebe depois de quase um minuto de silêncio. Nesse
+     meio-tempo os ouvintes ficam mudos: o amigo entra e esta tela
+     continua em "esperando adversário". Derrubar e religar na volta
+     força uma conexão nova, que já chega com o estado atual da sala. */
+  _vigiarAba() {
+    if (this._abaVigiada || typeof document === 'undefined' || !document.addEventListener) return;
+    this._abaVigiada = true;
+    let saiu = 0;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') { saiu = Date.now(); return; }
+      if (saiu && Date.now() - saiu > this.RELIGAR_MS && this.db) {
+        try { this.db.goOffline(); this.db.goOnline(); } catch (e) {}
+      }
+      saiu = 0;
+    });
   },
 
   r(p) { return this.db.ref(p); },
@@ -117,6 +139,13 @@ const TransporteFirebase = {
       const res = await this.prazo(this.r('salas/' + cod).transaction(s => {
         if (s === null) { motivo = 'inexistente'; return null; }
         if (s.visitante && s.visitante !== uid) { motivo = 'cheia'; return; }
+        /* Sala antiga cujo dono não está mais aqui: é de um convite velho
+           que ficou no WhatsApp. Entrar nela deixaria o amigo "dentro" de
+           uma sala que ninguém mais olha, enquanto o dono espera em outra. */
+        const donoAqui = !!(s.vivo && s.vivo[1]);
+        if (!donoAqui && s.criada && Date.now() - s.criada > this.SALA_VELHA_MS) {
+          motivo = 'inexistente'; return;
+        }
         motivo = null;
         s.visitante = uid;
         s.cfgB = cfgB;
