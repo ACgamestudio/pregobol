@@ -1002,7 +1002,10 @@ Rede.ao.oponente = s => {
     const seg = s.visto && s.visto[1] != null ? Math.round(s.visto[1] / 1000) : 0;
     dizer(null, t('joinedWaitHost', seg));
   } else if (Rede.sou === 1 && s.visitante) {
-    dizer('friendJoined');
+    /* Diz QUAL lado está faltando: é isso que separa "o celular do amigo
+       ainda não conectou" de "este aparelho perdeu a conexão". */
+    const eu = !!(s.vivo && s.vivo[1]), ele = !!(s.vivo && s.vivo[2]);
+    dizer(!eu ? 'selfReconnecting' : !ele ? 'friendJoinedWait' : 'friendJoined');
   }
 };
 

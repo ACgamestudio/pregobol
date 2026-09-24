@@ -110,17 +110,25 @@ const TransporteFirebase = {
     const uid = this.uid, cfgB = this.limpo(dados) || {};
     let motivo = null;
     try {
+      /* O "vivo" do visitante vai JUNTO com a entrada, na mesma
+         transação: não existe um instante em que o anfitrião vê
+         "amigo entrou" e o amigo ainda não está marcado. */
+      await this.r('salas/' + cod + '/vivo/2').onDisconnect().remove();
       const res = await this.prazo(this.r('salas/' + cod).transaction(s => {
         if (s === null) { motivo = 'inexistente'; return null; }
         if (s.visitante && s.visitante !== uid) { motivo = 'cheia'; return; }
         motivo = null;
         s.visitante = uid;
         s.cfgB = cfgB;
+        s.vivo = Object.assign({}, s.vivo, { 2: true });
         if (s.saiu) delete s.saiu[2];
         return s;
       }, undefined, false));
-      if (!res.committed) { this.motivo = motivo || 'cheia'; return false; }
-      if (motivo || !res.snapshot.val()) { this.motivo = motivo || 'inexistente'; return false; }
+      if (!res.committed || motivo || !res.snapshot.val()) {
+        this.r('salas/' + cod + '/vivo/2').onDisconnect().cancel().catch(() => {});
+        this.motivo = motivo || (res.committed ? 'inexistente' : 'cheia');
+        return false;
+      }
       this.motivo = null;
       return true;
     } catch (e) { throw this.explicar(e); }
@@ -135,8 +143,7 @@ const TransporteFirebase = {
     this.pararPresenca();
     const vivo = this.r('salas/' + cod + '/vivo/' + sou);
     const con = this.db.ref('.info/connected');
-    const h = con.on('value', async snap => {
-      if (snap.val() !== true) return;
+    const marcar = async () => {
       try {
         await vivo.onDisconnect().remove();
         await vivo.set(true);
@@ -145,9 +152,14 @@ const TransporteFirebase = {
           await this.r('fila/' + cod).set(firebase.database.ServerValue.TIMESTAMP);
         }
       } catch (e) {
-        /* sala apagada: a regra .validate recusa recriar só o "vivo" */
+        /* Sala apagada: a regra .validate recusa recriar só o "vivo", e
+           isso é o esperado. Qualquer outra recusa é problema de verdade
+           (regra errada) e precisa aparecer na tela, não sumir aqui. */
+        if (this.aoErro) this.aoErro(this.explicar(e));
       }
-    });
+    };
+    const h = con.on('value', snap => { if (snap.val() === true) marcar(); });
+    marcar();
     this._presenca = () => {
       con.off('value', h);
       vivo.onDisconnect().cancel().catch(() => {});
@@ -323,6 +335,7 @@ const Rede = {
      tempo pelo outro voltar antes de encerrar. Saída de verdade não
      espera: quem sai marca "saiu" e o outro lado sabe na hora. */
   QUEDA_MS: 45000,
+  CURA_MS: 3000,          // intervalo mínimo entre remarcações de presença
 
   codigo() {
     /* No vowels: a room code should never accidentally spell something. */
@@ -427,11 +440,25 @@ const Rede = {
     if (this._offSala) this._offSala();
     if (this._offJog) this._offJog();
     if (this._offAudio) this._offAudio();
-    if (this.T.presenca) this.T.presenca(this.sala, this.sou);
+    if (this.T.presenca) {
+      this.T.aoErro = e => {
+        if (this.ativo && this.cfgSala && this.ao.erro) this.ao.erro(e);
+      };
+      this.T.presenca(this.sala, this.sou);
+    }
 
     this._offSala = this.T.ouvirSala(this.sala, s => {
       if (!s) { this._quedou(); return; }
       this.cfgSala = s;
+      /* Autocura: a sala existe, eu estou nela, mas o servidor não me vê
+         como "vivo". Seja qual for o motivo (reconexão que não avisou,
+         aba congelada, escrita perdida), marca de novo. Com limite pra
+         não virar um laço de escritas. */
+      if (this.ativo && !(s.vivo && s.vivo[this.sou]) && this.T.presenca &&
+          Date.now() - (this._curou || 0) > this.CURA_MS) {
+        this._curou = Date.now();
+        this.T.presenca(this.sala, this.sou);
+      }
       const doisAqui = !!(s.vivo && s.vivo[1] && s.vivo[2]);
       const outro = this.sou === 1 ? 2 : 1;
       if (doisAqui && this._graca) { clearTimeout(this._graca); this._graca = null; }

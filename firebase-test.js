@@ -22,7 +22,10 @@ function criarFirebase(){
     cair(){this.conectado=false;this.onDisc.forEach(([p,v])=>server.write(p,v));this.onDisc=[];this.ouv.forEach(o=>o.disparar());},
     voltar(){this.conectado=true;const f=this.fila;this.fila=[];f.forEach(x=>x());this.ouv.forEach(o=>o.disparar());}};
   server.clientes.push(cli);
-  const snap=(key,v)=>({key,val:()=>clone(v)});
+  /* igual ao Firebase: objeto com chaves numéricas "cheio o bastante" vira array */
+  const arr=v=>{if(!v||typeof v!=='object')return v;const o={};for(const k in v)o[k]=arr(v[k]);const ks=Object.keys(o);
+    if(ks.length&&ks.every(k=>/^\d+$/.test(k))){const max=Math.max(...ks.map(Number));if(ks.length*2>max+1){const a=[];for(let i=0;i<=max;i++)a.push(o[i]===undefined?null:o[i]);return a;}}return o;};
+  const snap=(key,v)=>({key,val:()=>arr(clone(v))});
   const ref=(p,q)=>{const r={
     path:p,
     set(v){return new Promise((ok,falha)=>{const faz=()=>{try{server.write(p,v);ok();}catch(e){falha(e);}};cli.conectado?setImmediate(faz):cli.fila.push(faz);});},
@@ -124,6 +127,21 @@ let falhas=0;const check=(nome,ok)=>{console.log((ok?'OK   ':'FALHA')+' '+nome);
   F2.Rede.T.uid=F.cli.uid;
   const ret=await F2.Rede.retomar(lemb);await espera(60);
   check('anfitrião retomou após recarregar',ret&&pF===1&&F2.Rede.estado==='jogando');
+
+  // escrita do "vivo" perdida com a conexão de pé: autocura
+  const H=cliente(),I=cliente();let pH=0,pI=0;H.Rede.ao.pronto=()=>pH++;I.Rede.ao.pronto=()=>pI++;
+  H.Rede.CURA_MS=10;await H.Rede.conectar({});await I.Rede.conectar({});
+  const cod3=await H.Rede.criar({campo:'rua'},false);await espera();
+  server.write('salas/'+cod3+'/vivo/1',null);await espera();
+  await I.Rede.entrar(cod3,{});await espera(80);
+  check('autocura: vivo perdido é reescrito e a partida começa',pH===1&&pI===1);
+
+  // mesmo navegador, duas abas (mesmo uid anônimo)
+  const J=cliente(),K=cliente();K.cli.uid=J.cli.uid;let pJ=0,pK=0;J.Rede.ao.pronto=()=>pJ++;K.Rede.ao.pronto=()=>pK++;
+  await J.Rede.conectar({});await K.Rede.conectar({});
+  const cod4=await J.Rede.criar({campo:'rua'},false);await espera();
+  const okK=await K.Rede.entrar(cod4,{});await espera(80);
+  check('duas abas do mesmo navegador também começam',okK&&pJ===1&&pK===1);
 
   console.log(falhas?`\n${falhas} FALHA(S)`:'\nTUDO OK');process.exit(falhas?1:0);
 })().catch(e=>{console.error('ERRO',e);process.exit(1);});
