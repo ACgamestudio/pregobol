@@ -196,9 +196,29 @@ body.jogando .cenario{opacity:1;}
 .card.idioma em{color:#9CE08A;}
 
 /* ===================== online ===================== */
+/* Mesmo fundo da tela inicial, escurecido pra o painel ficar legível. */
+#telaOnline{
+  background:
+    linear-gradient(180deg, rgba(4,6,12,.35) 0%, rgba(4,6,12,.62) 55%, rgba(4,6,12,.8) 100%),
+    #070504 url('../assets/fundo.webp') center 18%/cover no-repeat;
+}
+/* O painel desce pra metade de baixo: o logo da arte fica à mostra em cima. */
+#telaOnline{ justify-content:flex-end; padding-bottom:max(3vh, 14px); }
+#telaOnline h2{ text-shadow:0 2px 8px #000, 0 0 18px rgba(0,0,0,.8); }
+/* celular deitado: não sobra altura pro logo, então o painel fica mais
+   opaco e o título sai (o logo da arte já diz onde se está) */
+@media (max-height:560px){
+  #telaOnline h2{ display:none; }
+  #telaOnline .painelOnline{ background:rgba(8,10,16,.86); }
+}
 .painelOnline{
   display:flex; flex-direction:column; gap:14px; align-items:center;
   width:min(420px, 92vw); margin:0 auto;
+  padding:14px; border-radius:16px;
+  background:rgba(8,10,16,.72);
+  border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 12px 34px rgba(0,0,0,.55);
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
 }
 .codigoCaixa{
   width:100%; text-align:center; padding:14px 12px 12px;
