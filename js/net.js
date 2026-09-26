@@ -32,6 +32,8 @@
      sair(cod, sou)         -> Promise
      enviarAudio(cod, a)    -> Promise            a = {de, mime, d(base64), dur}
      ouvirAudios(cod, cb)   -> unsubscribe        cb(a)
+     gravar(cod, cam, v)    -> Promise            escreve salas/cod/prep/cam
+                                                  (escolha de time e campo)
      presenca(cod, sou)     -> void   (opcional) mantém vivo/sou de pé,
                                        inclusive depois de reconectar
    ------------------------------------------------------------------ */
@@ -226,6 +228,16 @@ const TransporteFirebase = {
     return () => ref.off('child_added', h);
   },
 
+  /* Escolhas da pré-partida (time de cada um, campo do anfitrião).
+     Ficam em salas/COD/prep: o ouvinte da sala já entrega tudo pros
+     dois lados, não precisa de canal novo. */
+  async gravar(cod, cam, v) {
+    try {
+      await this.prazo(this.r('salas/' + cod + '/prep/' + cam).set(this.limpo(v)),
+                       'a escolha não chegou ao servidor');
+    } catch (e) { throw this.explicar(e); }
+  },
+
   async enfileirar(cod) {
     this.meuNaFila = cod;
     await this.r('fila/' + cod).onDisconnect().remove();
@@ -316,6 +328,12 @@ const TransporteLoop = {
   ouvirJogadas(cod, cb) {
     (this.mundo.ouvintesJ[cod] = this.mundo.ouvintesJ[cod] || []).push(cb);
     return () => {};
+  },
+  async gravar(cod, cam, v) {
+    const s = this._s(cod); if (!s) return;
+    s.prep = Object.assign({}, s.prep);
+    if (v == null) delete s.prep[cam]; else s.prep[cam] = JSON.parse(JSON.stringify(v));
+    this._avisar(cod);
   },
   async enfileirar(cod) { this.mundo.fila.push(cod); },
   async desenfileirar() {},
@@ -561,6 +579,14 @@ const Rede = {
     const n = this.turno++;
     try { await this.T.enviar(this.sala, n, msg); }
     catch (e) { if (this.ao.erro) this.ao.erro(e); }
+  },
+
+  /* Pré-partida: cada um grava o próprio time em prep/j1 ou prep/j2, e
+     o anfitrião grava o campo em prep/campo. A partida só começa quando
+     as três coisas existem — decidido em cada tela olhando a sala. */
+  async escolher(cam, v) {
+    if (!this.ativo || !this.sala) return;
+    await this.T.gravar(this.sala, cam, v);
   },
 
   minhaVez(jogadorDaVez) { return !this.ativo || jogadorDaVez === this.sou; },

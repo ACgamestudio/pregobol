@@ -430,6 +430,11 @@ ligarCard('cardIdioma', () => {
 /* ---- team select: unchanged artwork, unchanged hotspots ---- */
 let escolhendo = 1;
 
+/* Pré-partida online. null fora dela; durante, guarda em que tela o
+   jogador está ('times' | 'campo'). Cada aparelho escolhe só o SEU time
+   (anfitrião = lado 1, visitante = lado 2) e o anfitrião escolhe o campo. */
+let prepOnline = null;
+
 /* Arcade is a campaign: you pick YOUR club once and the ladder throws
    opponents at you. Choosing both sides would make it a friendly. */
 function soMeuTime() { return Modo.tipo === 'arcade'; }
@@ -462,9 +467,11 @@ function montarGradeTimes() {
     b.className = 'hot';
     b.style.cssText = `left:${p.l}%;top:${p.t}%;width:${p.w}%;height:${p.h}%`;
     b.setAttribute('aria-label', cl.nome);
-    if (escolhendo === 2 && chave === times[1]) {
+    /* online: o time que o ADVERSÁRIO já pegou fica bloqueado */
+    const bloqueado = prepOnline ? timeDoOutro() : (escolhendo === 2 ? times[1] : null);
+    if (chave === bloqueado) {
       b.classList.add('usado');
-      b.textContent = t('player1');
+      b.textContent = prepOnline ? t('opponent') : t('player1');
       b.disabled = true;
     } else {
       b.onclick = () => escolherTime(chave);
@@ -484,6 +491,7 @@ function abrirTimes() {
 }
 function escolherTime(chave) {
   Som.ligar(); Som.botao();
+  if (prepOnline) { escolherTimeOnline(chave); return; }
   times[escolhendo] = chave;
   if (escolhendo === 1 && soMeuTime()) {
     encherSacola();                       // fresh ladder, fresh draw order
@@ -510,21 +518,31 @@ function escolherTime(chave) {
 let cfgPendente = null;
 function montarGradeCampos() {
   gradeCampos.innerHTML = '';
+  /* Online: só o anfitrião escolhe. O visitante vê a mesma lista, sem
+     poder tocar, com o campo escolhido aceso assim que ele for gravado. */
+  const soVer = !!(prepOnline && Rede.sou === 2);
+  const campoSala = prepOnline ? prepDe(Rede.cfgSala).campo : null;
+  const aceso = soVer ? campoSala : (prepOnline ? (campoSala || null) : campoAtual);
   for (const chave of ORDEM_CAMPOS) {
     const c = CAMPOS[chave];
     const pal = PALETAS[c.paleta];
-    const tem = Progresso.temCampo(chave);
+    /* o visitante pode não ter desbloqueado o campo do anfitrião: mostra
+       mesmo assim, quem manda é o anfitrião */
+    const tem = soVer || Progresso.temCampo(chave);
     const b = document.createElement('button');
-    b.className = 'op campo' + (tem ? '' : ' travado') + (chave === campoAtual ? ' on' : '');
+    b.className = 'op campo' + (tem ? '' : ' travado') + (chave === aceso ? ' on' : '') +
+                  (soVer ? ' soVer' : '');
     b.innerHTML =
       `<span class="mini" style="background:linear-gradient(90deg,${pal.m2} 0 7%,${pal.g1} 7% 20%,` +
       `${pal.g2} 20% 80%,${pal.g1} 80% 93%,${pal.m2} 93%)"></span>` +
       `<span class="txt"><b>${c.nome}</b><i>${tem ? c.frase : t('locked')}</i>` +
       `<u>${tem ? c.sub : ''}</u></span>`;
-    if (!tem) b.disabled = true;
+    if (soVer) b.tabIndex = -1;
+    else if (!tem) b.disabled = true;
     else b.onclick = () => {
       Som.ligar(); Som.botao();
       campoAtual = chave;
+      if (prepOnline) { escolherCampoOnline(chave); return; }
       if (campoAntesDeJogar) comecarPartida(cfgPendente || { alvo: 3 });
       else { pararMusica(); montarGradeCampos(); }
     };
@@ -532,6 +550,8 @@ function montarGradeCampos() {
   }
 }
 function abrirCampos(antesDeJogar, cfg) {
+  const av = document.getElementById('avisoCampo');
+  if (av) av.classList.add('oculta');
   campoAntesDeJogar = antesDeJogar;
   cfgPendente = cfg;
   menu.classList.add('oculta'); telaTimes.classList.add('oculta');
@@ -658,8 +678,14 @@ function mostrarFim(plano, vencedor) {
 function esconderFim() { if (telaFim) telaFim.classList.add('oculta'); }
 
 /* ---- back buttons ---- */
-document.getElementById('voltarMenu1').onclick = abrirMenu;
-document.getElementById('voltarMenu2').onclick = abrirMenu;
+/* Voltar no meio da pré-partida online é sair da sala: o adversário é
+   avisado na hora, em vez de ficar esperando uma escolha que não vem. */
+function voltarDaEscolha() {
+  if (prepOnline) Rede.encerrar();
+  abrirMenu();
+}
+document.getElementById('voltarMenu1').onclick = voltarDaEscolha;
+document.getElementById('voltarMenu2').onclick = voltarDaEscolha;
 document.getElementById('voltarMenu3').onclick = abrirMenu;
 document.getElementById('voltarMenu4').onclick = abrirMenu;
 
@@ -799,13 +825,161 @@ async function ligarRede() {
   }
 }
 
-/* Both players are in the room: start the same match on both devices.
-   The host's field choice wins, and each side keeps its own cap. */
-function comecarOnline() {
-  fecharTelas();
+/* ==================================================================
+   PRÉ-PARTIDA ONLINE
+   Os dois estão na sala → cada um vai pra escolha de times (cada
+   aparelho escolhe o SEU lado) → escolha de campo (o anfitrião escolhe,
+   o visitante acompanha) → a partida começa nos dois ao mesmo tempo.
+
+   Tudo passa pela própria sala no Firebase:
+     prep/j1 = { time, tampa }   gravado pelo anfitrião
+     prep/j2 = { time, tampa }   gravado pelo visitante
+     prep/campo = 'rua'          gravado pelo anfitrião
+   Cada aparelho olha a sala e começa quando as três coisas existem. Não
+   tem mensagem "comece agora" que possa se perder no caminho.
+   ================================================================== */
+const minhaChave = () => 'j' + Rede.sou;
+const chaveOutro = () => 'j' + (Rede.sou === 1 ? 2 : 1);
+function prepDe(s) { return (s && s.prep) || {}; }
+function timeDoOutro() {
+  const o = prepDe(Rede.cfgSala)[chaveOutro()];
+  return (o && o.time) || null;
+}
+
+/* A tampa do jogador 1 é a do anfitrião e a do 2 é a do visitante, nos
+   DOIS aparelhos. Antes cada aparelho usava a própria como jogador 1 e as
+   duas telas simulavam bolas de tamanhos diferentes. Guarda a escolha
+   local pra devolver quando a partida online acabar. */
+let tampasGuardadas = null;
+function restaurarTampas() {
+  if (!tampasGuardadas) return;
+  tampas[1] = tampasGuardadas[1]; tampas[2] = tampasGuardadas[2];
+  tampasGuardadas = null;
+}
+
+function abrirPrepOnline() {
+  Modo.online({ alvo: 3 });
+  prepOnline = { etapa: 'times', outroVisto: undefined, iniciou: false };
+  document.body.classList.remove('jogando');
+  menu.classList.add('oculta');
+  telaOnline.classList.add('oculta');
+  const meu = prepDe(Rede.cfgSala)[minhaChave()];
+  /* página recarregada no meio da escolha: não pede de novo o que já foi */
+  if (meu && meu.time && meu.time !== timeDoOutro()) {
+    times[Rede.sou] = meu.time;
+    abrirCamposOnline();
+  } else {
+    abrirTimesOnline();
+  }
+  atualizarPrep(Rede.cfgSala);
+}
+
+function abrirTimesOnline(aviso) {
+  prepOnline.etapa = 'times';
+  prepOnline.outroVisto = timeDoOutro();
+  escolhendo = Rede.sou;
+  if (subTimes) subTimes.innerHTML = `<b>${t('yourTeam')}</b>`;
+  telaTimes.classList.add('jogador2');          // mostra a legenda por cima da arte
+  telaCampo.classList.add('oculta');
+  telaTimes.classList.remove('oculta');
+  pintarConfrontoOnline(aviso);
+  montarGradeTimes();
+}
+
+function pintarConfrontoOnline(aviso) {
+  if (!elConfronto) return;
+  if (aviso) { elConfronto.innerHTML = `<span>${aviso}</span>`; return; }
+  const o = timeDoOutro();
+  const cl = o && CLUBES[o];
+  elConfronto.innerHTML = cl
+    ? `<span>${t('opponentPicked')}</span><span class="camisa" style="background:${fundoCamisa(cl)}"></span><span>${cl.nome}</span>`
+    : `<span>${t('opponentPicking')}</span>`;
+}
+
+function escolherTimeOnline(chave) {
+  if (chave === timeDoOutro()) return;
+  times[Rede.sou] = chave;
+  abrirCamposOnline();
+  Rede.escolher(minhaChave(), { time: chave, tampa: tampas[1] })
+    .catch(e => avisoCampo((e && e.message) || t('netFail')));
+}
+
+function abrirCamposOnline() {
+  prepOnline.etapa = 'campo';
+  telaTimes.classList.add('oculta');
+  telaCampo.classList.remove('oculta');
+  montarGradeCampos();
+  atualizarAvisoCampo();
+}
+
+function escolherCampoOnline(chave) {
+  montarGradeCampos();
+  atualizarAvisoCampo();
+  Rede.escolher('campo', chave)
+    .catch(e => avisoCampo((e && e.message) || t('netFail')));
+}
+
+function avisoCampo(txt) {
+  const av = document.getElementById('avisoCampo');
+  if (!av) return;
+  av.textContent = txt || '';
+  av.classList.toggle('oculta', !txt);
+}
+
+function atualizarAvisoCampo() {
+  const p = prepDe(Rede.cfgSala);
+  const outroPronto = !!(p[chaveOutro()] && p[chaveOutro()].time);
+  if (Rede.sou === 1) avisoCampo(!p.campo ? t('youPickField') : !outroPronto ? t('waitOpponentTeam') : '');
+  else avisoCampo(!p.campo ? t('hostPickingField') : !outroPronto ? t('waitOpponentTeam') : '');
+}
+
+/* Chamado a cada mudança na sala durante a pré-partida. */
+function atualizarPrep(s) {
+  if (!prepOnline || !s) return;
+  const p = prepDe(s);
+  const meu = p[minhaChave()], outro = p[chaveOutro()];
+
+  /* Os dois tocaram no mesmo time no mesmo instante: fica com o
+     anfitrião, e o visitante volta pra escolher outro. */
+  if (Rede.sou === 2 && prepOnline.etapa === 'campo' && meu && outro && meu.time === outro.time) {
+    Rede.escolher(minhaChave(), null).catch(() => {});
+    abrirTimesOnline(t('teamTaken'));
+    return;
+  }
+
+  if (prepOnline.etapa === 'times') {
+    const o = (outro && outro.time) || null;
+    if (o !== prepOnline.outroVisto) {        // só redesenha quando muda algo
+      prepOnline.outroVisto = o;
+      pintarConfrontoOnline();
+      montarGradeTimes();
+    }
+  } else {
+    montarGradeCampos();
+    atualizarAvisoCampo();
+  }
+
+  if (p.j1 && p.j2 && p.j1.time && p.j2.time && p.j1.time !== p.j2.time && p.campo &&
+      prepOnline.etapa === 'campo' && !prepOnline.iniciou) {
+    comecarOnline(p);
+  }
+}
+
+/* Tudo escolhido: a mesma partida começa nos dois aparelhos, com os
+   mesmos times, o mesmo campo e as mesmas tampas. */
+function comecarOnline(p) {
+  prepOnline.iniciou = true;
+  prepOnline = null;
+  avisoCampo('');
   const s = Rede.cfgSala || {};
   const cfg = (s.cfg) || {};
-  campoAtual = cfg.campo || campoAtual;
+  times[1] = p.j1.time;
+  times[2] = p.j2.time;
+  if (CAMPOS[p.campo]) campoAtual = p.campo;
+  if (!tampasGuardadas) tampasGuardadas = { 1: tampas[1], 2: tampas[2] };
+  tampas[1] = TAMPAS[p.j1.tampa] ? p.j1.tampa : 'classica';
+  tampas[2] = TAMPAS[p.j2.tampa] ? p.j2.tampa : 'classica';
+  fecharTelas();
   const cfgLocal = Modo.online({ alvo: cfg.alvo || 3 });
   novaPartida(cfgLocal);
   atualizarHUD();
@@ -998,11 +1172,17 @@ if (Voz.btn) {
 }
 
 Rede.ao.audio = a => Voz.receber(a);
-Rede.ao.fim = () => Voz.mostrar(false);
+Rede.ao.fim = () => {
+  Voz.mostrar(false);
+  prepOnline = null;
+  avisoCampo('');
+  restaurarTampas();
+};
 
 /* Enquanto espera, a tela diz O QUÊ está esperando, em vez de um
    "conectando…" eterno que não explica nada. */
 Rede.ao.oponente = s => {
+  if (prepOnline) { atualizarPrep(s); return; }
   if (!s || Rede.estado !== 'esperando') return;
   if (Rede.sou === 2 && !(s.vivo && s.vivo[1])) {
     const seg = s.visto && s.visto[1] != null ? Math.round(s.visto[1] / 1000) : 0;
@@ -1015,13 +1195,22 @@ Rede.ao.oponente = s => {
   }
 };
 
-Rede.ao.pronto = () => comecarOnline();
+/* Os dois chegaram: antes da partida, escolha de times e de campo. */
+Rede.ao.pronto = () => abrirPrepOnline();
 Rede.ao.jogada = m => jogadaRemota(m);
 Rede.ao.erro = e => {
   dizer(null, (e && e.message) ? e.message : t('netFail'));
   mostrarCodigo('');
 };
 Rede.ao.saiu = () => {
+  /* saiu durante a escolha: o aviso da partida ficaria escondido atrás
+     da tela de times/campo, então avisa nela mesma */
+  if (prepOnline) {
+    if (prepOnline.etapa === 'campo') avisoCampo(t('opponentLeft'));
+    else if (elConfronto) elConfronto.innerHTML = `<span>${t('opponentLeft')}</span>`;
+    setTimeout(() => { Rede.encerrar(); abrirMenu(); }, 1800);
+    return;
+  }
   mostrarAviso(t('opponentLeft'), '');
   fase = 'fim';
   setTimeout(() => { Rede.encerrar(); abrirMenu(); }, 1800);

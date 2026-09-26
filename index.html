@@ -285,6 +285,11 @@
     font-weight:700;line-height:1.15;text-align:center;color:var(--carne);
   }
   .op[disabled]{opacity:.3;}
+  /* online: o visitante VÊ o campo que o anfitrião está escolhendo, sem tocar */
+  .op.soVer{pointer-events:none;cursor:default;}
+  .op.soVer:not(.on){opacity:.5;}
+  .avisoCampo{min-height:18px;margin:-4px 0 2px;font-size:13px;font-weight:700;
+              color:#FFD24A;text-align:center;}
   .op .camisa{width:30px;height:30px;border-radius:7px;
               box-shadow:inset 0 0 0 1px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.5);}
   .op .mini{width:100%;height:34px;border-radius:6px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.5);}
@@ -363,7 +368,7 @@
   #btnEntrarSala.chamando{background:#FFD24A;border-color:#FFE58A;color:#2B1E14;animation:chamaEntrar 1s ease-in-out infinite;}
   @keyframes chamaEntrar{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
 </style>
-<link rel="stylesheet" href="css/ui-ex.css?v=20260923e">
+<link rel="stylesheet" href="css/ui-ex.css?v=20260926a">
 </head>
 <body>
 
@@ -490,6 +495,7 @@
 <!-- ===================== field select ===================== -->
 <div class="tela oculta" id="telaCampo">
   <h2 id="tituloCampo">FIELD SELECT</h2>
+  <p class="avisoCampo oculta" id="avisoCampo"></p>
   <div class="grade lista" id="gradeCampos"></div>
   <button class="voltar" id="voltarMenu2">back to menu</button>
 </div>
@@ -564,20 +570,20 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <!-- VERSÃO: troque o ?v= abaixo a cada atualização pra forçar o celular a baixar os arquivos novos -->
-<script src="js/firebase-config.js?v=20260923e"></script>
-<script src="js/i18n.js?v=20260923e"></script>
-<script src="js/audio.js?v=20260923e"></script>
-<script src="js/rng.js?v=20260923e"></script>
-<script src="js/data-caps.js?v=20260923e"></script>
-<script src="js/data-fields.js?v=20260923e"></script>
-<script src="js/data-nails.js?v=20260923e"></script>
-<script src="js/fx.js?v=20260923e"></script>
-<script src="js/combos.js?v=20260923e"></script>
-<script src="js/specials.js?v=20260923e"></script>
-<script src="js/progress.js?v=20260923e"></script>
-<script src="js/net.js?v=20260923e"></script>
-<script src="js/modes.js?v=20260923e"></script>
-<script src="js/engine.js?v=20260923e"></script>
-<script src="js/ui.js?v=20260923e"></script>
+<script src="js/firebase-config.js?v=20260926a"></script>
+<script src="js/i18n.js?v=20260926a"></script>
+<script src="js/audio.js?v=20260926a"></script>
+<script src="js/rng.js?v=20260926a"></script>
+<script src="js/data-caps.js?v=20260926a"></script>
+<script src="js/data-fields.js?v=20260926a"></script>
+<script src="js/data-nails.js?v=20260926a"></script>
+<script src="js/fx.js?v=20260926a"></script>
+<script src="js/combos.js?v=20260926a"></script>
+<script src="js/specials.js?v=20260926a"></script>
+<script src="js/progress.js?v=20260926a"></script>
+<script src="js/net.js?v=20260926a"></script>
+<script src="js/modes.js?v=20260926a"></script>
+<script src="js/engine.js?v=20260926a"></script>
+<script src="js/ui.js?v=20260926a"></script>
 </body>
 </html>
