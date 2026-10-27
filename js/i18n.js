@@ -67,6 +67,7 @@ en: {
 
   /* --- goals (§5) --- */
   goal: 'GOOOOOAL!',
+  goalShout: 'GOAL!',
   goalCries: ['GOAL!', 'WHAT A SHOT!', 'PERFECT!', 'UNBELIEVABLE!',
               'WHAT A GOAL!', 'TOP CORNER!', 'THAT WAS CLEAN!'],
   goalFor: n => `Point for ${n}`,
@@ -158,6 +159,7 @@ pt: {
   turn: 'Vez de', yourTurn: 'SUA VEZ', aim: 'MIRA', power: 'FORÇA', shoot: 'CHUTA!',
   scores: 'vale gol!', thinking: 'IA pensando…', over: 'Fim',
   goal: 'GOOOOOL!',
+  goalShout: 'GOL!',
   goalCries: ['GOL!', 'QUE CHUTE!', 'PERFEITO!', 'INACREDITÁVEL!',
               'QUE GOL!', 'NO ÂNGULO!', 'QUE LIMPEZA!'],
   goalFor: n => `Ponto do ${n}`,

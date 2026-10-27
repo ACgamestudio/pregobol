@@ -706,13 +706,7 @@ function recomecarDoMeio(quemComeca) {
 /* Lampejo branco sobre a página inteira — placar, cenário e mesa. É um
    elemento só, reaproveitado: reiniciar a animação exige tirar a classe,
    forçar um reflow e devolver, senão o segundo gol seguido não pisca. */
-function lampejoTela() {
-  const el = document.getElementById('flashGol');
-  if (!el) return;
-  el.classList.remove('bate');
-  void el.offsetWidth;
-  el.classList.add('bate');
-}
+function lampejoTela() { /* sem clarão branco: a festa do gol (FX.golFesta) assumiu */ }
 
 function registrarGol(dono) {
   bola.vx = bola.vy = 0; bola.giro = 0;
@@ -731,14 +725,13 @@ function registrarGol(dono) {
     Especiais.ganhar(dono, combo.cargas);
     setTimeout(() => avisarCarga(dono, combo.cargas), 700);
   }
-  FX.grito(t('goal'), combo ? t(combo.chave) : '', '#FFF6DC', true);
 
   /* --- the goal itself (spec §5) --- */
   const cl = clube(dono), cp = tampaDe(dono);
   FX.golExplosao(bola.x, bola.y, [cl.c1, cp.c1]);
   FX.devagar(34);
   FX.focar(bola.x, bola.y, 1.28, 52);
-  lampejoTela();
+  FX.golFesta(W, H, [cl.c1, cp.c1], t('goalShout'), combo ? t(combo.chave) : '');
   Som.gol();
 
   /* --- a challenge is decided by the goal, not by the score --- */
@@ -1479,16 +1472,9 @@ function laco(agora) {
   FX.desenharOndas(ctx);
   ctx.restore();
 
-  /* Clarão do gol. Fora do save() da câmera de propósito: ele cobre a
-     mesa inteira sem tremer junto com o screen shake. O lampejo do
-     lampejoTela() cobre o resto da página. */
-  const f = FX.brilho();
-  if (f > 0) {
-    ctx.save();
-    ctx.fillStyle = `rgba(255,255,255,${f * .55})`;
-    ctx.fillRect(0, 0, W, H);
-    ctx.restore();
-  }
+  /* Festa do gol: confete + "GOL!" em espaço de tela, fora da câmera
+     (não treme junto com o shake). Nada de clarão branco. */
+  FX.desenharFesta(ctx, W, H);
   FX.desenharGritos(ctx, W, H);
 
   requestAnimationFrame(laco);
